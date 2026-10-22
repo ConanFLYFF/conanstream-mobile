@@ -1,0 +1,37 @@
+name: iptv_pro_max
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.0
+  media_kit: ^1.1.10
+  media_kit_video: ^1.2.4
+  media_kit_libs_video: ^1.0.7
+  shared_preferences: ^2.2.2
+  window_manager: ^0.3.8
+  cached_network_image: ^3.3.1
+  device_info_plus: ^10.1.0
+  network_info_plus: ^5.0.3
+  crypto: ^3.0.3
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/logo.png
+    - assets/splash_logo.png
