@@ -18,7 +18,17 @@ pluginManagement {
 
 plugins {
     id "dev.flutter.flutter-plugin-loader" version "1.0.0"
-    id "com.android.application" version "7.3.1" apply false
+    id "com.android.application" version "7.4.2" apply false
     // On retire la ligne kotlin-android pour éviter le conflit de version du classpath
 }
 include ":app"
+```[cite: 3]
+
+### Comment l'appliquer :
+1. Remplace entièrement le contenu de ton fichier **`android/settings.gradle`** par ce code[cite: 3].
+2. Enregistre le fichier.
+3. Pousse la modification sur GitHub et relance ton build sur Codemagic :
+   ```powershell
+   git add android/settings.gradle
+   git commit -m "Passage de l'AGP a 7.4.2 dans settings.gradle"
+   git push origin main
