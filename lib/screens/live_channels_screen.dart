@@ -53,18 +53,33 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
   late final Player _player;
   late final VideoController _controller;
 
+  // Variables pour la reconnexion automatique en cas de coupure de flux
+  int _retryCount = 0;
+  static const int _maxRetries = 3;
+  StreamSubscription? _errorSubscription;
+
   @override
   void initState() {
     super.initState();
     _player = Player();
     _controller = VideoController(_player);
     _player.setVolume(_currentVolume);
+
+    // Écouteur global des erreurs du lecteur pour déclencher la reconnexion auto
+    _errorSubscription = _player.stream.error.listen((error) {
+      debugPrint("Erreur détectée sur le flux live : $error");
+      if (selectedChannel != null) {
+        _handleStreamFailure(selectedChannel!);
+      }
+    });
+
     _fetchCategoriesAndChannels();
   }
 
   @override
   void dispose() {
     _hideTimer?.cancel();
+    _errorSubscription?.cancel();
     _player.stop();
     _player.dispose();
     windowManager.unmaximize();
@@ -182,7 +197,6 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
 
   // --- EPG AVEC MISE EN CACHE INTELLIGENTE ---
   Future<void> _fetchEPG(String streamId) async {
-    // 1. Essayer de charger le cache local en premier pour affichage instantané (0ms)
     final cachedEpg = await SharedPrefsHelper.getCachedEpg(streamId);
     if (cachedEpg != null && cachedEpg.isNotEmpty) {
       if (mounted) {
@@ -198,7 +212,6 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
       });
     }
 
-    // 2. Requête réseau en arrière-plan pour rafraîchir / récupérer les données fraîches
     try {
       final String baseUrl = widget.serverUrl.endsWith('/')
           ? widget.serverUrl.substring(0, widget.serverUrl.length - 1)
@@ -213,7 +226,6 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
         final data = json.decode(res.body);
         if (data is Map && data['epg_listings'] != null && data['epg_listings'] is List) {
           final listings = data['epg_listings'] as List;
-          // Sauvegarde dans le cache intelligent
           await SharedPrefsHelper.saveCachedEpg(streamId, listings);
 
           if (mounted) {
@@ -237,17 +249,47 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
   void _selectChannel(Map item) {
     setState(() {
       selectedChannel = item;
+      _retryCount = 0; // Réinitialise le compteur de tentatives lors d'un changement manuel
     });
+    
+    _openStreamWithAutoRecovery(item);
+    _fetchEPG(item['stream_id'].toString());
+  }
+
+  void _openStreamWithAutoRecovery(Map item) {
     final String baseUrl = widget.serverUrl.endsWith('/')
         ? widget.serverUrl.substring(0, widget.serverUrl.length - 1)
         : widget.serverUrl;
 
     final streamId = item['stream_id'].toString();
     final streamUrl = '$baseUrl/live/${widget.username}/${widget.password}/$streamId.ts';
-    _player.open(Media(streamUrl));
-    _player.setVolume(_currentVolume);
 
-    _fetchEPG(streamId);
+    // Ouverture du flux avec l'en-tête User-Agent VLC pour éviter les blocages
+    _player.open(
+      Media(
+        streamUrl,
+        httpHeaders: {
+          'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
+        },
+      ),
+    );
+    _player.setVolume(_currentVolume);
+  }
+
+  void _handleStreamFailure(Map item) {
+    if (_retryCount < _maxRetries) {
+      _retryCount++;
+      debugPrint("Tentative de reconnexion automatique de la chaîne (${_retryCount}/$_maxRetries)...");
+      
+      // Attente de 2 secondes avant de retenter de relancer le flux
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted && selectedChannel?['stream_id'] == item['stream_id']) {
+          _openStreamWithAutoRecovery(item);
+        }
+      });
+    } else {
+      debugPrint("Échec de la reconnexion automatique après $_maxRetries tentatives.");
+    }
   }
 
   void _applyFilters() {
