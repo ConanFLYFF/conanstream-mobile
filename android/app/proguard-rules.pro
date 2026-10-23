@@ -8,3 +8,4 @@
 
 # Conserver media_kit
 -keep class com.alexmercerind.media_kit.** { *; }
+-dontwarn com.google.android.play.core.**
