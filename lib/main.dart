@@ -2,6 +2,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 import 'screens/login_screen.dart';
@@ -15,6 +16,12 @@ void main() async {
   // Capture globale des erreurs pour éviter les fermetures instantanées (crashes silencieux)
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+
+    // 📱 Force l'application uniquement en mode paysage (horizontal) sur mobile/tablette
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     
     try {
       MediaKit.ensureInitialized();
@@ -119,7 +126,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     Widget targetScreen;
 
     if (!isAllowed) {
-      // Écran de blocage si la période d'essai est expirée
+      // Écran de blocage et de paiement si la période d'essai est expirée
       targetScreen = ActivationScreen(
         reason: reason,
         onActivated: () {
@@ -127,8 +134,18 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
         },
       );
     } else {
-      // Écran d'accueil normal / Connexion si l'accès est autorisé
-      targetScreen = const LoginScreen();
+      // Si l'accès est autorisé, vérifie s'il y a un compte enregistré
+      final accounts = await SharedPrefsHelper.getAccounts();
+      if (accounts.isNotEmpty) {
+        final activeAccount = accounts.last;
+        targetScreen = HomeScreen(
+          serverUrl: activeAccount.serverUrl,
+          username: activeAccount.username,
+          password: activeAccount.password,
+        );
+      } else {
+        targetScreen = const LoginScreen();
+      }
     }
 
     if (!mounted) return;

@@ -1,5 +1,5 @@
-name: iptv_pro_max
-description: "A new Flutter project."
+name: conanstream
+description: "Application IPTV ConanStream avec lecteur multimédia haute performance."
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -28,6 +28,14 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
+
+# Configuration automatique de l'icône Android avec le logo du lion néon
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/splash_logo.png"
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true

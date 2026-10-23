@@ -95,7 +95,12 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
     if (event is RawKeyDownEvent) {
       _onUserActivity();
       
-      if (event.logicalKey == LogicalKeyboardKey.space) {
+      // Sécurité : Quitter immédiatement avec la touche Échap
+      if (event.logicalKey == LogicalKeyboardKey.escape) {
+        if (_isPiP) _togglePiP();
+        Navigator.pop(context);
+        return KeyEventResult.handled;
+      } else if (event.logicalKey == LogicalKeyboardKey.space) {
         _player.playOrPause();
         return KeyEventResult.handled;
       } else if (event.logicalKey == LogicalKeyboardKey.keyF) {
@@ -472,8 +477,8 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
             },
             child: Stack(
               children: [
-                Center(
-                  child: ClipRect(
+                Positioned.fill(
+                  child: Center(
                     child: Video(
                       controller: _controller,
                       controls: NoVideoControls,
@@ -650,7 +655,6 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                                             children: [
                                               Row(
                                                 children: [
-                                                  // Bouton PiP garanti visible indépendamment du mode live
                                                   IconButton(
                                                     icon: Icon(
                                                       _isPiP ? Icons.picture_in_picture_alt : Icons.picture_in_picture,
