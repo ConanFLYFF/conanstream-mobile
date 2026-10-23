@@ -55,8 +55,36 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
 
     try {
-      final authUrl = Uri.parse('$serverUrl/player_api.php?username=$username&password=$password');
-      final response = await http.get(authUrl).timeout(const Duration(seconds: 10));
+      // Extraction du nom de domaine pour contourner le blocage DNS des FAI français
+      final uri = Uri.parse(serverUrl);
+      final host = uri.host;
+      
+      String targetUrl = serverUrl;
+      Map<String, String> headers = {};
+
+      // Contournement DNS automatique via Cloudflare DoH (DNS over HTTPS)
+      try {
+        final dohRes = await http.get(
+          Uri.parse('https://cloudflare-dns.com/dns-query?name=$host&type=A'),
+          headers: {'Accept': 'application/dns-json'},
+        ).timeout(const Duration(seconds: 4));
+
+        if (dohRes.statusCode == 200) {
+          final dohData = json.decode(dohRes.body);
+          final answers = dohData['Answer'];
+          if (answers != null && answers is List && answers.isNotEmpty) {
+            final ip = answers.first['data'];
+            // On remplace le domaine par l'IP directe et on conserve l'en-tête Host
+            targetUrl = serverUrl.replaceFirst(host, ip);
+            headers['Host'] = host;
+          }
+        }
+      } catch (_) {
+        // Si le DoH échoue, on retente l'URL classique
+      }
+
+      final authUrl = Uri.parse('$targetUrl/player_api.php?username=$username&password=$password');
+      final response = await http.get(authUrl, headers: headers).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -66,7 +94,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (userInfo['auth'] == 1 || userInfo['status'] == 'Active') {
             
             final profile = AccountProfile(
-              serverUrl: serverUrl,
+              serverUrl: serverUrl, // On sauvegarde l'URL d'origine propre
               username: username,
               password: password,
               userInfo: userInfo,
@@ -104,8 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       setState(() {
-        // Affiche la véritable exception technique retournée par Flutter
-        _errorMessage = 'Erreur: $e';
+        _errorMessage = 'Impossible de joindre le serveur. Vérifiez l\'URL.';
       });
     } finally {
       if (mounted) {
