@@ -1,7 +1,6 @@
 ﻿import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'home_screen.dart';
 import 'shared_prefs_helper.dart';
 
@@ -39,34 +38,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Fonction DoH robuste par IP directe pour contourner les DNS FAI sur Android
-  Future<String?> _resolveDoH(String serverIp, String hostHeader, String targetDomain) async {
-    try {
-      final client = HttpClient();
-      client.badCertificateCallback = (cert, host, port) => true;
-      client.connectionTimeout = const Duration(seconds: 3);
-
-      final request = await client.getUrl(
-        Uri.parse('https://$serverIp/dns-query?name=$targetDomain&type=A'),
-      );
-      request.headers.set('Accept', 'application/dns-json');
-      request.headers.set('Host', hostHeader);
-
-      final response = await request.close().timeout(const Duration(seconds: 3));
-      if (response.statusCode == 200) {
-        final body = await response.transform(utf8.decoder).join();
-        final data = json.decode(body);
-        final answers = data['Answer'];
-        if (answers != null && answers is List && answers.isNotEmpty) {
-          client.close();
-          return answers.first['data'];
-        }
-      }
-      client.close();
-    } catch (_) {}
-    return null;
-  }
-
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -83,33 +54,23 @@ class _LoginScreenState extends State<LoginScreen> {
     final username = _usernameController.text.trim();
     final password = _passwordController.text.trim();
 
+    HttpClient? client;
     try {
-      final uri = Uri.parse(serverUrl);
-      final host = uri.host;
+      // Configuration d'un client HTTP natif qui force l'acceptation des certificats et contourne les blocages Android
+      client = HttpClient();
+      client.badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+      client.connectionTimeout = const Duration(seconds: 15);
+
+      final authUri = Uri.parse('$serverUrl/player_api.php?username=$username&password=$password');
       
-      String targetUrl = serverUrl;
-      Map<String, String> headers = {};
-      String? resolvedIp;
-
-      // 1. Essai via Cloudflare (1.1.1.1)
-      resolvedIp = await _resolveDoH('1.1.1.1', 'cloudflare-dns.com', host);
-
-      // 2. Secours via Google (8.8.8.8) si Cloudflare échoue
-      if (resolvedIp == null) {
-        resolvedIp = await _resolveDoH('8.8.8.8', 'dns.google', host);
-      }
-
-      // Si une IP a été trouvée, on remplace le domaine et on fixe le Host header
-      if (resolvedIp != null) {
-        targetUrl = serverUrl.replaceFirst(host, resolvedIp);
-        headers['Host'] = host;
-      }
-
-      final authUrl = Uri.parse('$targetUrl/player_api.php?username=$username&password=$password');
-      final response = await http.get(authUrl, headers: headers).timeout(const Duration(seconds: 10));
+      final request = await client.getUrl(authUri);
+      request.headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+      
+      final response = await request.close().timeout(const Duration(seconds: 15));
+      final responseBody = await response.transform(utf8.decoder).join();
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = json.decode(responseBody);
         
         if (data is Map && data['user_info'] != null) {
           final userInfo = data['user_info'];
@@ -144,19 +105,20 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         } else {
           setState(() {
-            _errorMessage = 'Identifiants invalides ou réponse du serveur incorrecte.';
+            _errorMessage = 'Réponse invalide du serveur.';
           });
         }
       } else {
         setState(() {
-          _errorMessage = 'Erreur de connexion au serveur (Code ${response.statusCode}).';
+          _errorMessage = 'Erreur HTTP code: ${response.statusCode}';
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Impossible de joindre le serveur. Vérifiez l\'URL.';
+        _errorMessage = 'Erreur technique : $e';
       });
     } finally {
+      client?.close();
       if (mounted) {
         setState(() {
           _isLoading = false;
