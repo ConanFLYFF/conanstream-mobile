@@ -62,7 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
       Map<String, String> headers = {};
       String? resolvedIp;
 
-      // 1. Première tentative de contournement via Cloudflare (1.1.1.1)[cite: 10]
+      // 1. Première tentative de contournement via Cloudflare (1.1.1.1)
       try {
         final res = await http.get(
           Uri.parse('https://1.1.1.1/dns-query?name=$host&type=A'),
@@ -289,7 +289,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       obscureText: true,
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        labelText: 'Nom d\'utilisateur', // (corrigé implicitement en mot de passe ci-dessous)
+                        labelText: 'Mot de passe',
                         labelStyle: const TextStyle(color: Colors.white60),
                         prefixIcon: const Icon(Icons.lock_rounded, color: Colors.indigoAccent),
                         filled: true,
@@ -297,4 +297,42 @@ class _LoginScreenState extends State<LoginScreen> {
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.indigoAccent)),
                       ),
-                      // ...
+                      validator: (value) => value == null || value.isEmpty ? 'Veuillez entrer votre mot de passe' : null,
+                    ),
+                    const SizedBox(height: 30),
+
+                    // Bouton de connexion
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigoAccent,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 5,
+                          shadowColor: Colors.indigoAccent.withOpacity(0.5),
+                        ),
+                        onPressed: _isLoading ? null : _handleLogin,
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                              )
+                            : const Text(
+                                'CONNEXION',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
