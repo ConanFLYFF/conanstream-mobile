@@ -55,34 +55,40 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
 
     try {
-      // Extraction du nom de domaine pour contourner le blocage DNS des FAI français
       final uri = Uri.parse(serverUrl);
       final host = uri.host;
       
       String targetUrl = serverUrl;
       Map<String, String> headers = {};
+      String debugStep = "Initialisation DoH";
 
-      // Contournement DNS automatique via Cloudflare DoH (DNS over HTTPS)
       try {
+        debugStep = "Connexion à Cloudflare DoH";
         final dohRes = await http.get(
           Uri.parse('https://cloudflare-dns.com/dns-query?name=$host&type=A'),
           headers: {'Accept': 'application/dns-json'},
-        ).timeout(const Duration(seconds: 4));
+        ).timeout(const Duration(seconds: 5));
 
         if (dohRes.statusCode == 200) {
+          debugStream:
           final dohData = json.decode(dohRes.body);
           final answers = dohData['Answer'];
           if (answers != null && answers is List && answers.isNotEmpty) {
             final ip = answers.first['data'];
-            // On remplace le domaine par l'IP directe et on conserve l'en-tête Host
             targetUrl = serverUrl.replaceFirst(host, ip);
             headers['Host'] = host;
+            debugStep = "IP trouvée: $ip";
+          } else {
+            debugStep = "Aucune IP trouvée via DoH (Answers vide)";
           }
+        } else {
+          debugStep = "Erreur HTTP DoH: ${dohRes.statusCode}";
         }
-      } catch (_) {
-        // Si le DoH échoue, on retente l'URL classique
+      } catch (dohErr) {
+        debugStep = "Exception DoH: $dohErr";
       }
 
+      // Tentative de connexion finale
       final authUrl = Uri.parse('$targetUrl/player_api.php?username=$username&password=$password');
       final response = await http.get(authUrl, headers: headers).timeout(const Duration(seconds: 10));
 
@@ -94,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (userInfo['auth'] == 1 || userInfo['status'] == 'Active') {
             
             final profile = AccountProfile(
-              serverUrl: serverUrl, // On sauvegarde l'URL d'origine propre
+              serverUrl: serverUrl,
               username: username,
               password: password,
               userInfo: userInfo,
@@ -127,12 +133,12 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } else {
         setState(() {
-          _errorMessage = 'Erreur de connexion au serveur (Code ${response.statusCode}).';
+          _errorMessage = 'Erreur serveur (Code ${response.statusCode}) [$debugStep].';
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Impossible de joindre le serveur. Vérifiez l\'URL.';
+        _errorMessage = 'Erreur technique: $e';
       });
     } finally {
       if (mounted) {
