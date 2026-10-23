@@ -1,4 +1,5 @@
 ﻿import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
@@ -14,25 +15,29 @@ void main() async {
   // Capture globale des erreurs pour éviter les fermetures instantanées (crashes silencieux)
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    
     try {
       MediaKit.ensureInitialized();
     } catch (_) {}
 
-    await windowManager.ensureInitialized();
+    // Configuration de la fenêtre uniquement sur les plateformes Desktop (Windows, macOS, Linux)
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      await windowManager.ensureInitialized();
 
-    WindowOptions windowOptions = const WindowOptions(
-      size: Size(1280, 720),
-      center: true,
-      backgroundColor: Colors.transparent,
-      skipTaskbar: false,
-      titleBarStyle: TitleBarStyle.normal,
-      title: 'ConanStream',
-    );
+      WindowOptions windowOptions = const WindowOptions(
+        size: Size(1280, 720),
+        center: true,
+        backgroundColor: Colors.transparent,
+        skipTaskbar: false,
+        titleBarStyle: TitleBarStyle.normal,
+        title: 'ConanStream',
+      );
 
-    windowManager.waitUntilReadyToShow(windowOptions, () async {
-      await windowManager.show();
-      await windowManager.focus();
-    });
+      windowManager.waitUntilReadyToShow(windowOptions, () async {
+        await windowManager.show();
+        await windowManager.focus();
+      });
+    }
 
     runApp(const MyApp());
   }, (error, stack) {
@@ -237,30 +242,4 @@ class EpicCyberpunkPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     for (int i = 0; i < 16; i++) {
-      final angle = (i * math.pi / 8) + (tick * math.pi * 0.5);
-      final distanceMax = 200.0 + (progress * 500.0 * rnd.nextDouble());
-
-      final startX = center.dx + math.cos(angle) * 100;
-      final startY = center.dy + math.sin(angle) * 100;
-      final endX = center.dx + math.cos(angle) * distanceMax;
-      final endY = center.dy + math.sin(angle) * distanceMax;
-
-      final path = Path()
-        ..moveTo(startX, startY)
-        ..lineTo(endX, endY);
-
-      canvas.drawPath(path, i % 2 == 0 ? paintCyan : paintPurple);
-
-      canvas.drawCircle(
-        Offset(endX, endY),
-        3.0 + (rnd.nextDouble() * 3),
-        i % 2 == 0 ? paintCyan : paintPurple,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant EpicCyberpunkPainter oldDelegate) {
-    return oldDelegate.progress != progress || oldDelegate.tick != tick;
-  }
-}
+      final angle = (i * math.pi / 8) + (tick * math.pi * 0.
