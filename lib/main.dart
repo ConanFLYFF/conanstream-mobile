@@ -242,4 +242,30 @@ class EpicCyberpunkPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     for (int i = 0; i < 16; i++) {
-      final angle = (i * math.pi / 8) + (tick * math.pi * 0.
+      final angle = (i * math.pi / 8) + (tick * math.pi * 0.5);
+      final distanceMax = 200.0 + (progress * 500.0 * rnd.nextDouble());
+
+      final startX = center.dx + math.cos(angle) * 100;
+      final startY = center.dy + math.sin(angle) * 100;
+      final endX = center.dx + math.cos(angle) * distanceMax;
+      final endY = center.dy + math.sin(angle) * distanceMax;
+
+      final path = Path()
+        ..moveTo(startX, startY)
+        ..lineTo(endX, endY);
+
+      canvas.drawPath(path, i % 2 == 0 ? paintCyan : paintPurple);
+
+      canvas.drawCircle(
+        Offset(endX, endY),
+        3.0 + (rnd.nextDouble() * 3),
+        i % 2 == 0 ? paintCyan : paintPurple,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant EpicCyberpunkPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.tick != tick;
+  }
+}
