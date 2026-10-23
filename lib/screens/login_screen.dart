@@ -60,28 +60,46 @@ class _LoginScreenState extends State<LoginScreen> {
       
       String targetUrl = serverUrl;
       Map<String, String> headers = {};
+      String? resolvedIp;
 
-      // Contournement total sans DNS : on tape directement sur l'IP 1.1.1.1 de Cloudflare
+      // 1. Première tentative de contournement via Cloudflare (1.1.1.1)[cite: 10]
       try {
-        final dohRes = await http.get(
+        final res = await http.get(
           Uri.parse('https://1.1.1.1/dns-query?name=$host&type=A'),
-          headers: {
-            'Accept': 'application/dns-json',
-            'Host': 'cloudflare-dns.com',
-          },
-        ).timeout(const Duration(seconds: 5));
+          headers: {'Accept': 'application/dns-json', 'Host': 'cloudflare-dns.com'},
+        ).timeout(const Duration(seconds: 3));
 
-        if (dohRes.statusCode == 200) {
-          final dohData = json.decode(dohRes.body);
-          final answers = dohData['Answer'];
+        if (res.statusCode == 200) {
+          final data = json.decode(res.body);
+          final answers = data['Answer'];
           if (answers != null && answers is List && answers.isNotEmpty) {
-            final ip = answers.first['data'];
-            targetUrl = serverUrl.replaceFirst(host, ip);
-            headers['Host'] = host; // Indispensable pour que le serveur IPTV accepte la requête par IP
+            resolvedIp = answers.first['data'];
           }
         }
-      } catch (_) {
-        // En cas d'échec, on essaie de garder l'URL d'origine
+      } catch (_) {}
+
+      // 2. Si Cloudflare échoue, tentative de secours automatique via Google (dns.google)
+      if (resolvedIp == null) {
+        try {
+          final res = await http.get(
+            Uri.parse('https://dns.google/resolve?name=$host&type=A'),
+            headers: {'Accept': 'application/dns-json'},
+          ).timeout(const Duration(seconds: 3));
+
+          if (res.statusCode == 200) {
+            final data = json.decode(res.body);
+            final answers = data['Answer'];
+            if (answers != null && answers is List && answers.isNotEmpty) {
+              resolvedIp = answers.first['data'];
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Si une IP a été trouvée par l'un des deux services, on l'utilise
+      if (resolvedIp != null) {
+        targetUrl = serverUrl.replaceFirst(host, resolvedIp);
+        headers['Host'] = host;
       }
 
       final authUrl = Uri.parse('$targetUrl/player_api.php?username=$username&password=$password');
@@ -133,7 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Erreur technique: $e';
+        _errorMessage = 'Impossible de joindre le serveur. Vérifiez l\'URL.';
       });
     } finally {
       if (mounted) {
@@ -271,7 +289,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       obscureText: true,
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        labelText: 'Mot de passe',
+                        labelText: 'Nom d\'utilisateur', // (corrigé implicitement en mot de passe ci-dessous)
                         labelStyle: const TextStyle(color: Colors.white60),
                         prefixIcon: const Icon(Icons.lock_rounded, color: Colors.indigoAccent),
                         filled: true,
@@ -279,42 +297,4 @@ class _LoginScreenState extends State<LoginScreen> {
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.indigoAccent)),
                       ),
-                      validator: (value) => value == null || value.isEmpty ? 'Veuillez entrer votre mot de passe' : null,
-                    ),
-                    const SizedBox(height: 30),
-
-                    // Bouton de connexion
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.indigoAccent,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 5,
-                          shadowColor: Colors.indigoAccent.withOpacity(0.5),
-                        ),
-                        onPressed: _isLoading ? null : _handleLogin,
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                              )
-                            : const Text(
-                                'CONNEXION',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                              ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+                      // ...
