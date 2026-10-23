@@ -54,7 +54,6 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
       _exitFullScreen();
     }
 
-    // Configuration nettoyée (buffer optimisé)
     _player = Player(
       configuration: const PlayerConfiguration(
         bufferSize: 256 * 1024 * 1024,
@@ -96,7 +95,6 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
     if (event is RawKeyDownEvent) {
       _onUserActivity();
       
-      // Sécurité : Quitter immédiatement avec la touche Échap
       if (event.logicalKey == LogicalKeyboardKey.escape) {
         if (_isPiP) _togglePiP();
         Navigator.pop(context);
@@ -200,19 +198,19 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
     final bool isLive = widget.streamUrl.contains('.ts') || widget.streamUrl.contains('.m3u8') || widget.streamUrl.contains('/live/');
     final savedProgress = isLive ? 0.0 : await SharedPrefsHelper.getVodProgress(widget.vodId);
 
+    // Ajout systématique du User-Agent VLC pour éviter les rejets IPTV VOD/Séries
+    final media = Media(
+      widget.streamUrl,
+      httpHeaders: {
+        'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
+      },
+    );
+
+    await _player.open(media);
+
     if (isLive) {
-      await _player.open(
-        Media(
-          widget.streamUrl,
-          httpHeaders: {
-            'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
-          },
-        ),
-      );
       await _player.setRate(1.0);
     } else {
-      await _player.open(Media(widget.streamUrl));
-
       if (savedProgress > 0.0 && savedProgress < 0.99) {
         _player.stream.duration.listen((duration) {
           if (duration.inMilliseconds > 0 && !_isInitialized) {
@@ -488,243 +486,234 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                   ),
                 ),
                 if (_showControls)
-                  Container(
-                    color: Colors.black.withOpacity(0.5),
-                    child: SafeArea(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          return SingleChildScrollView(
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                minHeight: constraints.maxHeight,
-                              ),
-                              child: IntrinsicHeight(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                                      child: Row(
-                                        children: [
-                                          IconButton(
-                                            icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
-                                            onPressed: () async {
-                                              if (_isPiP) await _togglePiP();
-                                              if (context.mounted) Navigator.pop(context);
-                                            },
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Text(
-                                              widget.title,
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.bold,
-                                                shadows: [Shadow(blurRadius: 10, color: Colors.black, offset: Offset(0, 2))],
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          if (!isLive) ...[
-                                            IconButton(
-                                              icon: const Icon(Icons.audiotrack, color: Colors.white),
-                                              tooltip: 'Changer de piste audio',
-                                              onPressed: _showAudioTracksDialog,
-                                            ),
-                                            IconButton(
-                                              icon: const Icon(Icons.subtitles, color: Colors.white),
-                                              tooltip: 'Sous-titres',
-                                              onPressed: _showSubtitleTracksDialog,
-                                            ),
-                                          ],
-                                        ],
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black.withOpacity(0.5),
+                      child: SafeArea(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // Barre supérieure
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                              child: Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                                    onPressed: () async {
+                                      if (_isPiP) await _togglePiP();
+                                      if (context.mounted) Navigator.pop(context);
+                                    },
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      widget.title,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        shadows: [Shadow(blurRadius: 10, color: Colors.black, offset: Offset(0, 2))],
                                       ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    if (!isLive)
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            if (isSeries) ...[
-                                              IconButton(
-                                                iconSize: 36,
-                                                color: widget.onPrevious != null ? Colors.white : Colors.white24,
-                                                icon: const Icon(Icons.skip_previous_rounded),
-                                                tooltip: 'Épisode précédent',
-                                                onPressed: widget.onPrevious,
-                                              ),
-                                              const SizedBox(width: 16),
-                                            ],
-                                            IconButton(
-                                              iconSize: 40,
-                                              color: Colors.white,
-                                              icon: const Icon(Icons.replay_10),
-                                              tooltip: 'Reculer de 10s',
-                                              onPressed: () {
-                                                final newPos = _player.state.position - const Duration(seconds: 10);
-                                                _player.seek(newPos);
-                                              },
-                                            ),
-                                            const SizedBox(width: 30),
-                                            StreamBuilder<bool>(
-                                              stream: _player.stream.playing,
-                                              builder: (context, snapshot) {
-                                                final isPlaying = snapshot.data ?? true;
-                                                return IconButton(
-                                                  iconSize: 64,
-                                                  color: const Color(0xFF00E5FF),
-                                                  icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled),
-                                                  onPressed: () => _player.playOrPause(),
-                                                );
-                                              },
-                                            ),
-                                            const SizedBox(width: 30),
-                                            IconButton(
-                                              iconSize: 40,
-                                              color: Colors.white,
-                                              icon: const Icon(Icons.forward_10),
-                                              tooltip: 'Avancer de 10s',
-                                              onPressed: () {
-                                                final newPos = _player.state.position + const Duration(seconds: 10);
-                                                _player.seek(newPos);
-                                              },
-                                            ),
-                                            if (isSeries) ...[
-                                              const SizedBox(width: 16),
-                                              IconButton(
-                                                iconSize: 36,
-                                                color: widget.onNext != null ? Colors.white : Colors.white24,
-                                                icon: const Icon(Icons.skip_next_rounded),
-                                                tooltip: 'Épisode suivant',
-                                                onPressed: widget.onNext,
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      )
-                                    else
-                                      const SizedBox.shrink(),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF090E18).withOpacity(0.85),
-                                        border: const Border(top: BorderSide(color: Color(0xFF00E5FF), width: 0.5)),
-                                      ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          if (!isLive)
-                                            StreamBuilder<Duration>(
-                                              stream: _player.stream.position,
-                                              builder: (context, snapshot) {
-                                                final position = snapshot.data ?? Duration.zero;
-                                                final duration = _player.state.duration;
-                                                final double val = duration.inMilliseconds > 0 ? position.inMilliseconds / duration.inMilliseconds : 0.0;
-
-                                                return Row(
-                                                  children: [
-                                                    Text(_formatDuration(position), style: const TextStyle(color: Colors.white, fontSize: 12)),
-                                                    const SizedBox(width: 12),
-                                                    Expanded(
-                                                      child: SliderTheme(
-                                                        data: SliderTheme.of(context).copyWith(
-                                                          activeTrackColor: const Color(0xFF00E5FF),
-                                                          inactiveTrackColor: Colors.white24,
-                                                          thumbColor: Colors.white,
-                                                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                                                        ),
-                                                        child: Slider(
-                                                          value: val.clamp(0.0, 1.0),
-                                                          onChanged: (value) {
-                                                            final target = Duration(milliseconds: (value * duration.inMilliseconds).toInt());
-                                                            _player.seek(target);
-                                                          },
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 12),
-                                                    Text(_formatDuration(duration), style: const TextStyle(color: Colors.white, fontSize: 12)),
-                                                  ],
-                                                );
-                                              },
-                                            ),
-                                          if (!isLive) const SizedBox(height: 8),
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Row(
-                                                children: [
-                                                  IconButton(
-                                                    icon: Icon(
-                                                      _isPiP ? Icons.picture_in_picture_alt : Icons.picture_in_picture,
-                                                      color: _isPiP ? const Color(0xFF00E5FF) : Colors.white,
-                                                    ),
-                                                    tooltip: _isPiP ? 'Quitter le mode PiP' : 'Mode PiP (Fenêtre flottante)',
-                                                    onPressed: _togglePiP,
-                                                  ),
-                                                  const SizedBox(width: 4),
-                                                  const Icon(Icons.volume_up, color: Colors.white, size: 22),
-                                                  const SizedBox(width: 8),
-                                                  SizedBox(
-                                                    width: 100,
-                                                    child: StreamBuilder<double>(
-                                                      stream: _player.stream.volume,
-                                                      builder: (context, snapshot) {
-                                                        final volume = snapshot.data ?? 50.0;
-                                                        return Slider(
-                                                          value: volume,
-                                                          min: 0.0,
-                                                          max: 100.0,
-                                                          activeColor: const Color(0xFF00E5FF),
-                                                          inactiveColor: Colors.white24,
-                                                          onChanged: (val) => _player.setVolume(val),
-                                                        );
-                                                      },
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                              Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  if (isLive)
-                                                    const Padding(
-                                                      padding: EdgeInsets.only(right: 16),
-                                                      child: Text(
-                                                        'DIRECT',
-                                                        style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
-                                                      ),
-                                                    ),
-                                                  Material(
-                                                    color: Colors.transparent,
-                                                    child: InkWell(
-                                                      borderRadius: BorderRadius.circular(8),
-                                                      onTap: _toggleFullScreen,
-                                                      child: Padding(
-                                                        padding: const EdgeInsets.all(8.0),
-                                                        child: Icon(
-                                                          _isFullScreen ? Icons.fullscreen_exit : Icons.fullscreen,
-                                                          color: Colors.white,
-                                                          size: 28,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
+                                  ),
+                                  if (!isLive) ...[
+                                    IconButton(
+                                      icon: const Icon(Icons.audiotrack, color: Colors.white),
+                                      tooltip: 'Changer de piste audio',
+                                      onPressed: _showAudioTracksDialog,
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.subtitles, color: Colors.white),
+                                      tooltip: 'Sous-titres',
+                                      onPressed: _showSubtitleTracksDialog,
                                     ),
                                   ],
-                                ),
+                                ],
                               ),
                             ),
-                          );
-                        },
+
+                            // Boutons centraux de lecture
+                            if (!isLive)
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  if (isSeries) ...[
+                                    IconButton(
+                                      iconSize: 36,
+                                      color: widget.onPrevious != null ? Colors.white : Colors.white24,
+                                      icon: const Icon(Icons.skip_previous_rounded),
+                                      tooltip: 'Épisode précédent',
+                                      onPressed: widget.onPrevious,
+                                    ),
+                                    const SizedBox(width: 16),
+                                  ],
+                                  IconButton(
+                                    iconSize: 40,
+                                    color: Colors.white,
+                                    icon: const Icon(Icons.replay_10),
+                                    tooltip: 'Reculer de 10s',
+                                    onPressed: () {
+                                      final newPos = _player.state.position - const Duration(seconds: 10);
+                                      _player.seek(newPos);
+                                    },
+                                  ),
+                                  const SizedBox(width: 30),
+                                  StreamBuilder<bool>(
+                                    stream: _player.stream.playing,
+                                    builder: (context, snapshot) {
+                                      final isPlaying = snapshot.data ?? true;
+                                      return IconButton(
+                                        iconSize: 64,
+                                        color: const Color(0xFF00E5FF),
+                                        icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled),
+                                        onPressed: () => _player.playOrPause(),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(width: 30),
+                                  IconButton(
+                                    iconSize: 40,
+                                    color: Colors.white,
+                                    icon: const Icon(Icons.forward_10),
+                                    tooltip: 'Avancer de 10s',
+                                    onPressed: () {
+                                      final newPos = _player.state.position + const Duration(seconds: 10);
+                                      _player.seek(newPos);
+                                    },
+                                  ),
+                                  if (isSeries) ...[
+                                    const SizedBox(width: 16),
+                                    IconButton(
+                                      iconSize: 36,
+                                      color: widget.onNext != null ? Colors.white : Colors.white24,
+                                      icon: const Icon(Icons.skip_next_rounded),
+                                      tooltip: 'Épisode suivant',
+                                      onPressed: widget.onNext,
+                                    ),
+                                  ],
+                                ],
+                              )
+                            else
+                              const SizedBox.shrink(),
+
+                            // Barre inférieure de progression & volume
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF090E18).withOpacity(0.85),
+                                border: const Border(top: BorderSide(color: Color(0xFF00E5FF), width: 0.5)),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (!isLive)
+                                    StreamBuilder<Duration>(
+                                      stream: _player.stream.position,
+                                      builder: (context, snapshot) {
+                                        final position = snapshot.data ?? Duration.zero;
+                                        final duration = _player.state.duration;
+                                        final double val = duration.inMilliseconds > 0 ? position.inMilliseconds / duration.inMilliseconds : 0.0;
+
+                                        return Row(
+                                          children: [
+                                            Text(_formatDuration(position), style: const TextStyle(color: Colors.white, fontSize: 12)),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: SliderTheme(
+                                                data: SliderTheme.of(context).copyWith(
+                                                  activeTrackColor: const Color(0xFF00E5FF),
+                                                  inactiveTrackColor: Colors.white24,
+                                                  thumbColor: Colors.white,
+                                                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                                                ),
+                                                child: Slider(
+                                                  value: val.clamp(0.0, 1.0),
+                                                  onChanged: (value) {
+                                                    final target = Duration(milliseconds: (value * duration.inMilliseconds).toInt());
+                                                    _player.seek(target);
+                                                  },
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Text(_formatDuration(duration), style: const TextStyle(color: Colors.white, fontSize: 12)),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  if (!isLive) const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          IconButton(
+                                            icon: Icon(
+                                              _isPiP ? Icons.picture_in_picture_alt : Icons.picture_in_picture,
+                                              color: _isPiP ? const Color(0xFF00E5FF) : Colors.white,
+                                            ),
+                                            tooltip: _isPiP ? 'Quitter le mode PiP' : 'Mode PiP (Fenêtre flottante)',
+                                            onPressed: _togglePiP,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          const Icon(Icons.volume_up, color: Colors.white, size: 22),
+                                          const SizedBox(width: 8),
+                                          SizedBox(
+                                            width: 100,
+                                            child: StreamBuilder<double>(
+                                              stream: _player.stream.volume,
+                                              builder: (context, snapshot) {
+                                                final volume = snapshot.data ?? 50.0;
+                                                return Slider(
+                                                  value: volume,
+                                                  min: 0.0,
+                                                  max: 100.0,
+                                                  activeColor: const Color(0xFF00E5FF),
+                                                  inactiveColor: Colors.white24,
+                                                  onChanged: (val) => _player.setVolume(val),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (isLive)
+                                            const Padding(
+                                              padding: EdgeInsets.only(right: 16),
+                                              child: Text(
+                                                'DIRECT',
+                                                style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                          Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              borderRadius: BorderRadius.circular(8),
+                                              onTap: _toggleFullScreen,
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(8.0),
+                                                child: Icon(
+                                                  _isFullScreen ? Icons.fullscreen_exit : Icons.fullscreen,
+                                                  color: Colors.white,
+                                                  size: 28,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

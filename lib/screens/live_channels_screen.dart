@@ -1,5 +1,6 @@
 ﻿import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -299,6 +300,275 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
     );
   }
 
+  Widget _buildChannelsList() {
+    return ListView.builder(
+      itemCount: filteredChannels.length,
+      itemBuilder: (context, index) {
+        final item = filteredChannels[index];
+        final logoUrl = item['stream_icon'] ?? '';
+        final title = item['name'] ?? 'Chaîne';
+        final streamId = item['stream_id'].toString();
+        final isCurrent = selectedChannel?['stream_id']?.toString() == streamId;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: GlassCard(
+            borderColor: isCurrent ? const Color(0xFF00E5FF) : Colors.white10,
+            borderRadius: 10,
+            opacity: isCurrent ? 0.25 : 0.08,
+            onTap: () {
+              if (isCurrent) {
+                _toggleMaximize(!_isPlayerMaximized);
+              } else {
+                _selectChannel(item);
+              }
+            },
+            child: ListTile(
+              contentPadding: EdgeInsets.symmetric(horizontal: Platform.isAndroid ? 4 : 0),
+              dense: true,
+              leading: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: SizedBox(
+                  width: Platform.isAndroid ? 30 : 40,
+                  height: Platform.isAndroid ? 30 : 40,
+                  child: _isValidImageUrl(logoUrl)
+                      ? CachedNetworkImage(
+                          imageUrl: logoUrl,
+                          fit: BoxFit.contain,
+                          placeholder: (context, url) => Container(color: Colors.white10),
+                          errorWidget: (context, url, error) => const Icon(Icons.tv, color: Colors.white38),
+                        )
+                      : const Icon(Icons.tv, color: Colors.white38),
+                ),
+              ),
+              title: Text(
+                title,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: Platform.isAndroid ? 11 : 14,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FutureBuilder<bool>(
+                    future: SharedPrefsHelper.isFavorite('fav_live', streamId),
+                    builder: (context, snapshot) {
+                      final isFav = snapshot.data ?? false;
+                      return IconButton(
+                        icon: Icon(
+                          isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                          color: isFav ? Colors.redAccent : Colors.white54,
+                          size: Platform.isAndroid ? 18 : 22,
+                        ),
+                        onPressed: () async {
+                          await SharedPrefsHelper.toggleFavorite('fav_live', item);
+                          setState(() {});
+                        },
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRightPanel() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeInOut,
+      color: _isPlayerMaximized ? Colors.black : Colors.transparent,
+      padding: EdgeInsets.all(_isPlayerMaximized ? 0 : (Platform.isAndroid ? 8 : 16)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!_isPlayerMaximized)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    selectedChannel?['name'] ?? 'Sélectionnez une chaîne',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: Platform.isAndroid ? 12 : 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (!Platform.isAndroid) _buildVolumeControlBar(),
+              ],
+            ),
+          if (!_isPlayerMaximized) SizedBox(height: Platform.isAndroid ? 4 : 8),
+          Expanded(
+            child: MouseRegion(
+              onHover: (_) => _onMouseMoved(),
+              child: Stack(
+                children: [
+                  InkWell(
+                    onDoubleTap: () => _toggleMaximize(!_isPlayerMaximized),
+                    child: Container(
+                      width: double.infinity,
+                      height: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(_isPlayerMaximized ? 0 : 12),
+                        boxShadow: _isPlayerMaximized
+                            ? []
+                            : [
+                                BoxShadow(
+                                  color: const Color(0xFF00E5FF).withOpacity(0.3),
+                                  blurRadius: 15,
+                                  spreadRadius: 1,
+                                )
+                              ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(_isPlayerMaximized ? 0 : 12),
+                        child: Video(
+                          controller: _controller,
+                          controls: NoVideoControls,
+                          filterQuality: FilterQuality.medium,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_isPlayerMaximized)
+                    Positioned(
+                      bottom: 20,
+                      left: 20,
+                      right: 20,
+                      child: AnimatedOpacity(
+                        opacity: _showOverlayControls ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 300),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(color: Colors.white24),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                selectedChannel?['name'] ?? '',
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
+                              _buildVolumeControlBar(),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (!_isPlayerMaximized)
+            SizedBox(
+              height: Platform.isAndroid ? 100 : 226,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(height: Platform.isAndroid ? 6 : 16),
+                  Row(
+                    children: [
+                      Icon(Icons.schedule, color: const Color(0xFF00E5FF), size: Platform.isAndroid ? 14 : 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Guide des programmes',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: Platform.isAndroid ? 11 : 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: Platform.isAndroid ? 4 : 10),
+                  Expanded(
+                    child: isLoadingEpg
+                        ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
+                        : epgList.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'Aucun programme disponible pour cette chaîne.',
+                                  style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: Platform.isAndroid ? 10 : 13),
+                                  textAlign: TextAlign.center,
+                                ),
+                              )
+                            : ListView.builder(
+                                itemCount: epgList.length,
+                                itemBuilder: (context, index) {
+                                  final epg = epgList[index];
+                                  final title = _formatEpgTitle(epg['title'] ?? 'Programme');
+                                  final start = epg['start'] ?? '';
+                                  final end = epg['end'] ?? '';
+
+                                  String timeLabel = '';
+                                  if (start.length >= 16 && end.length >= 16) {
+                                    final startTime = start.substring(11, 16);
+                                    final endTime = end.substring(11, 16);
+                                    timeLabel = '$startTime - $endTime';
+                                  }
+
+                                  final isNow = epg['has_archive'] == 1 || index == 0;
+
+                                  return GlassCard(
+                                    borderColor: isNow ? const Color(0xFF00E5FF) : Colors.white10,
+                                    borderRadius: Platform.isAndroid ? 6 : 8,
+                                    opacity: isNow ? 0.2 : 0.05,
+                                    child: Padding(
+                                      padding: EdgeInsets.all(Platform.isAndroid ? 4 : 0),
+                                      child: Row(
+                                        children: [
+                                          if (timeLabel.isNotEmpty)
+                                            Text(
+                                              timeLabel,
+                                              style: TextStyle(
+                                                color: isNow ? const Color(0xFF00E5FF) : Colors.white60,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: Platform.isAndroid ? 10 : 12,
+                                              ),
+                                            ),
+                                          if (timeLabel.isNotEmpty) SizedBox(width: Platform.isAndroid ? 8 : 12),
+                                          Expanded(
+                                            child: Text(
+                                              title,
+                                              style: TextStyle(
+                                                color: isNow ? Colors.white : Colors.white70,
+                                                fontWeight: isNow ? FontWeight.bold : FontWeight.normal,
+                                                fontSize: Platform.isAndroid ? 10 : 13,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return CallbackShortcuts(
@@ -477,9 +747,10 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
                         ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
                         : Row(
                             children: [
+                              // 1. Catégories
                               if (!_isPlayerMaximized)
                                 SizedBox(
-                                  width: 240,
+                                  width: Platform.isAndroid ? 150 : 240,
                                   child: Container(
                                     color: Colors.black.withOpacity(0.3),
                                     child: ListView.builder(
@@ -498,7 +769,7 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
                                             style: TextStyle(
                                               color: isSelected ? const Color(0xFF00E5FF) : Colors.white70,
                                               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                              fontSize: 13,
+                                              fontSize: Platform.isAndroid ? 11 : 13,
                                             ),
                                           ),
                                           onTap: () {
@@ -512,261 +783,34 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
                                     ),
                                   ),
                                 ),
+                              
+                              // 2. Liste des chaînes
                               if (!_isPlayerMaximized)
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(12.0),
-                                    child: ListView.builder(
-                                      itemCount: filteredChannels.length,
-                                      itemBuilder: (context, index) {
-                                        final item = filteredChannels[index];
-                                        final logoUrl = item['stream_icon'] ?? '';
-                                        final title = item['name'] ?? 'Chaîne';
-                                        final streamId = item['stream_id'].toString();
-                                        final isCurrent = selectedChannel?['stream_id']?.toString() == streamId;
-
-                                        return Container(
-                                          margin: const EdgeInsets.only(bottom: 8),
-                                          child: GlassCard(
-                                            borderColor: isCurrent ? const Color(0xFF00E5FF) : Colors.white10,
-                                            borderRadius: 10,
-                                            opacity: isCurrent ? 0.25 : 0.08,
-                                            onTap: () {
-                                              if (isCurrent) {
-                                                _toggleMaximize(!_isPlayerMaximized);
-                                              } else {
-                                                _selectChannel(item);
-                                              }
-                                            },
-                                            child: ListTile(
-                                              contentPadding: EdgeInsets.zero,
-                                              dense: true,
-                                              leading: ClipRRect(
-                                                borderRadius: BorderRadius.circular(6),
-                                                child: SizedBox(
-                                                  width: 40,
-                                                  height: 40,
-                                                  child: _isValidImageUrl(logoUrl)
-                                                      ? CachedNetworkImage(
-                                                          imageUrl: logoUrl,
-                                                          fit: BoxFit.contain,
-                                                          placeholder: (context, url) => Container(color: Colors.white10),
-                                                          errorWidget: (context, url, error) => const Icon(Icons.tv, color: Colors.white38),
-                                                        )
-                                                      : const Icon(Icons.tv, color: Colors.white38),
-                                                ),
-                                              ),
-                                              title: Text(
-                                                title,
-                                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                                              ),
-                                              trailing: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  FutureBuilder<bool>(
-                                                    future: SharedPrefsHelper.isFavorite('fav_live', streamId),
-                                                    builder: (context, snapshot) {
-                                                      final isFav = snapshot.data ?? false;
-                                                      return IconButton(
-                                                        icon: Icon(
-                                                          isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                                                          color: isFav ? Colors.redAccent : Colors.white54,
-                                                          size: 22,
-                                                        ),
-                                                        onPressed: () async {
-                                                          await SharedPrefsHelper.toggleFavorite('fav_live', item);
-                                                          setState(() {});
-                                                        },
-                                                      );
-                                                    },
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              Expanded(
-                                flex: 1,
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  curve: Curves.easeInOut,
-                                  color: _isPlayerMaximized ? Colors.black : Colors.transparent,
-                                  padding: EdgeInsets.all(_isPlayerMaximized ? 0 : 16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if (!_isPlayerMaximized)
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                selectedChannel?['name'] ?? 'Sélectionnez une chaîne',
-                                                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            _buildVolumeControlBar(),
-                                          ],
+                                Platform.isAndroid
+                                    ? SizedBox(
+                                        width: 190,
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(8.0),
+                                          child: _buildChannelsList(),
                                         ),
-                                      if (!_isPlayerMaximized) const SizedBox(height: 8),
-                                      Expanded(
-                                        child: MouseRegion(
-                                          onHover: (_) => _onMouseMoved(),
-                                          child: Stack(
-                                            children: [
-                                              InkWell(
-                                                onDoubleTap: () => _toggleMaximize(!_isPlayerMaximized),
-                                                child: Container(
-                                                  width: double.infinity,
-                                                  height: double.infinity,
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.black,
-                                                    borderRadius: BorderRadius.circular(_isPlayerMaximized ? 0 : 12),
-                                                    boxShadow: _isPlayerMaximized
-                                                        ? []
-                                                        : [
-                                                            BoxShadow(
-                                                              color: const Color(0xFF00E5FF).withOpacity(0.3),
-                                                              blurRadius: 15,
-                                                              spreadRadius: 1,
-                                                            )
-                                                          ],
-                                                  ),
-                                                  child: ClipRRect(
-                                                    borderRadius: BorderRadius.circular(_isPlayerMaximized ? 0 : 12),
-                                                    child: Video(
-                                                      controller: _controller,
-                                                      controls: NoVideoControls,
-                                                      filterQuality: FilterQuality.medium,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              if (_isPlayerMaximized)
-                                                Positioned(
-                                                  bottom: 20,
-                                                  left: 20,
-                                                  right: 20,
-                                                  child: AnimatedOpacity(
-                                                    opacity: _showOverlayControls ? 1.0 : 0.0,
-                                                    duration: const Duration(milliseconds: 300),
-                                                    child: Container(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.black54,
-                                                        borderRadius: BorderRadius.circular(30),
-                                                        border: Border.all(color: Colors.white24),
-                                                      ),
-                                                      child: Row(
-                                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                        children: [
-                                                          Text(
-                                                            selectedChannel?['name'] ?? '',
-                                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-                                                          ),
-                                                          _buildVolumeControlBar(),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
+                                      )
+                                    : Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12.0),
+                                          child: _buildChannelsList(),
                                         ),
                                       ),
-                                      if (!_isPlayerMaximized)
-                                        SizedBox(
-                                          height: 226,
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              const SizedBox(height: 16),
-                                              const Row(
-                                                children: [
-                                                  Icon(Icons.schedule, color: Color(0xFF00E5FF), size: 20),
-                                                  SizedBox(width: 8),
-                                                  Text(
-                                                    'Guide des programmes',
-                                                    style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 10),
-                                              Expanded(
-                                                child: isLoadingEpg
-                                                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
-                                                    : epgList.isEmpty
-                                                        ? Center(
-                                                            child: Text(
-                                                              'Aucun programme disponible pour cette chaîne.',
-                                                              style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13),
-                                                              textAlign: TextAlign.center,
-                                                            ),
-                                                          )
-                                                        : ListView.builder(
-                                                            itemCount: epgList.length,
-                                                            itemBuilder: (context, index) {
-                                                              final epg = epgList[index];
-                                                              final title = _formatEpgTitle(epg['title'] ?? 'Programme');
-                                                              final start = epg['start'] ?? '';
-                                                              final end = epg['end'] ?? '';
 
-                                                              String timeLabel = '';
-                                                              if (start.length >= 16 && end.length >= 16) {
-                                                                final startTime = start.substring(11, 16);
-                                                                final endTime = end.substring(11, 16);
-                                                                timeLabel = '$startTime - $endTime';
-                                                              }
-
-                                                              final isNow = epg['has_archive'] == 1 || index == 0;
-
-                                                              return GlassCard(
-                                                                borderColor: isNow ? const Color(0xFF00E5FF) : Colors.white10,
-                                                                borderRadius: 8,
-                                                                opacity: isNow ? 0.2 : 0.05,
-                                                                child: Row(
-                                                                  children: [
-                                                                    if (timeLabel.isNotEmpty)
-                                                                      Text(
-                                                                        timeLabel,
-                                                                        style: TextStyle(
-                                                                          color: isNow ? const Color(0xFF00E5FF) : Colors.white60,
-                                                                          fontWeight: FontWeight.bold,
-                                                                          fontSize: 12,
-                                                                        ),
-                                                                      ),
-                                                                    if (timeLabel.isNotEmpty) const SizedBox(width: 12),
-                                                                    Expanded(
-                                                                      child: Text(
-                                                                        title,
-                                                                        style: TextStyle(
-                                                                          color: isNow ? Colors.white : Colors.white70,
-                                                                          fontWeight: isNow ? FontWeight.bold : FontWeight.normal,
-                                                                          fontSize: 13,
-                                                                        ),
-                                                                        maxLines: 1,
-                                                                        overflow: TextOverflow.ellipsis,
-                                                                      ),
-                                                                    ),
-                                                                  ],
-                                                                ),
-                                                              );
-                                                            },
-                                                          ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                              // 3. Panneau de droite (Vidéo + Guide)
+                              Platform.isAndroid && !_isPlayerMaximized
+                                  ? SizedBox(
+                                      width: 260,
+                                      child: _buildRightPanel(),
+                                    )
+                                  : Expanded(
+                                      flex: 1,
+                                      child: _buildRightPanel(),
+                                    ),
                             ],
                           ),
                   ),

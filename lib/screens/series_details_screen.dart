@@ -102,7 +102,8 @@ class _SeriesDetailsScreenState extends State<SeriesDetailsScreen> {
   }
 
   String _getEpId(Map<String, dynamic> epMap) {
-    return (epMap['id'] ?? epMap['episode_id'] ?? '').toString();
+    final id = epMap['id'] ?? epMap['episode_id'] ?? epMap['stream_id'] ?? '';
+    return id.toString();
   }
 
   Future<void> _loadEpisodesProgress() async {
@@ -183,7 +184,10 @@ class _SeriesDetailsScreenState extends State<SeriesDetailsScreen> {
   void _playEpisodeByIndex(int index, {bool? isFullScreen, bool replace = false}) async {
     if (index < 0 || index >= _allEpisodesFlattened.length) return;
 
-    bool currentMaximized = isFullScreen ?? await windowManager.isMaximized();
+    bool currentMaximized = false;
+    try {
+      currentMaximized = isFullScreen ?? await windowManager.isMaximized();
+    } catch (_) {}
 
     await SharedPrefsHelper.trackInProgress('series', widget.series);
 
@@ -192,7 +196,11 @@ class _SeriesDetailsScreenState extends State<SeriesDetailsScreen> {
     final epNum = (epMap['episode_num'] ?? '1').toString();
     final seasonNum = epMap['season_num'] ?? '1';
     final epTitle = epMap['title'] ?? 'Épisode $epNum';
-    final containerExt = epMap['container_extension'] ?? 'mp4';
+
+    // Sécurisation du format de l'extension de fichier (par défaut mp4 si non fourni)
+    String containerExt = (epMap['container_extension'] ?? 'mp4').toString().trim();
+    if (containerExt.isEmpty) containerExt = 'mp4';
+
     final title = widget.series['name'] ?? 'Série';
 
     final String baseUrl = widget.serverUrl.endsWith('/')
@@ -210,18 +218,18 @@ class _SeriesDetailsScreenState extends State<SeriesDetailsScreen> {
         title: fullTitle,
         vodId: epId,
         initialFullScreen: currentMaximized,
-        // Bouton Épisode Précédent
         onPrevious: index > 0
             ? () async {
-                bool isStillMax = await windowManager.isMaximized();
+                bool isStillMax = false;
+                try { isStillMax = await windowManager.isMaximized(); } catch (_) {}
                 _playEpisodeByIndex(index - 1, isFullScreen: isStillMax, replace: true);
               }
             : null,
-        // Bouton Épisode Suivant
         onNext: index < _allEpisodesFlattened.length - 1
             ? () async {
                 await SharedPrefsHelper.saveVodProgress(epId, 1.0);
-                bool isStillMax = await windowManager.isMaximized();
+                bool isStillMax = false;
+                try { isStillMax = await windowManager.isMaximized(); } catch (_) {}
                 _playEpisodeByIndex(index + 1, isFullScreen: isStillMax, replace: true);
               }
             : null,
@@ -231,7 +239,8 @@ class _SeriesDetailsScreenState extends State<SeriesDetailsScreen> {
             setState(() {
               _episodesProgress[epId] = 1.0;
             });
-            bool isStillMax = await windowManager.isMaximized();
+            bool isStillMax = false;
+            try { isStillMax = await windowManager.isMaximized(); } catch (_) {}
             _playEpisodeByIndex(index + 1, isFullScreen: isStillMax, replace: true);
           }
         },
@@ -267,7 +276,8 @@ class _SeriesDetailsScreenState extends State<SeriesDetailsScreen> {
 
   void _playResumeEpisode() async {
     if (_allEpisodesFlattened.isNotEmpty) {
-      bool isMax = await windowManager.isMaximized();
+      bool isMax = false;
+      try { isMax = await windowManager.isMaximized(); } catch (_) {}
       _playEpisodeByIndex(_resumeEpisodeIndex, isFullScreen: isMax, replace: false);
     }
   }
@@ -536,7 +546,8 @@ class _SeriesDetailsScreenState extends State<SeriesDetailsScreen> {
                                             label: const Text('LANCER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                                             onPressed: () async {
                                               if (globalIndex != -1) {
-                                                bool isMax = await windowManager.isMaximized();
+                                                bool isMax = false;
+                                                try { isMax = await windowManager.isMaximized(); } catch (_) {}
                                                 _playEpisodeByIndex(globalIndex, isFullScreen: isMax, replace: false);
                                               }
                                             },
