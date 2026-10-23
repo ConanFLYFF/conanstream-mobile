@@ -33,12 +33,12 @@ class _ActivationScreenState extends State<ActivationScreen> {
       return "Cette application est liée à votre réseau initial. Veuillez vous y reconnecter pour lancer l'application.";
     }
     if (widget.reason == 'INVALID_DEVICE') {
-      return "Cette application est verrouillée sur un autre ordinateur.";
+      return "Cette application est verrouillée sur un autre appareil.";
     }
-    return "Vos 5 jours d'essai gratuit sont terminés. Obtenez votre licence à vie (29,99 €) pour débloquer l'application instantanément.";
+    return "Vos 5 jours d'essai gratuit sont terminés. Obtenez votre licence à vie (5,00 €) pour débloquer l'application instantanément.";
   }
 
-  /// Ouvre le navigateur sur la page de paiement PayPal 29,99 €
+  /// Ouvre le navigateur sur la page de paiement PayPal 5,00 €
   Future<void> _launchPayPalPayment() async {
     final Uri url = Uri.parse(_paypalLink);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
@@ -136,7 +136,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
                   ),
                   const SizedBox(height: 30),
                   if (widget.reason == 'EXPIRED' || widget.reason == 'IN_TRIAL') ...[
-                    // BOUTON DE PAIEMENT DIRECT PAYPAL (29,99 €)
+                    // BOUTON DE PAIEMENT DIRECT PAYPAL (5,00 €)
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
@@ -148,7 +148,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
                         ),
                         icon: const Icon(Icons.payment, color: Colors.black),
                         label: const Text(
-                          "PAYER 29,99 € VIA PAYPAL",
+                          "PAYER 5,00 € VIA PAYPAL",
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                         ),
                         onPressed: _launchPayPalPayment,
