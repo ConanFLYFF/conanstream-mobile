@@ -60,35 +60,30 @@ class _LoginScreenState extends State<LoginScreen> {
       
       String targetUrl = serverUrl;
       Map<String, String> headers = {};
-      String debugStep = "Initialisation DoH";
 
+      // Contournement total sans DNS : on tape directement sur l'IP 1.1.1.1 de Cloudflare
       try {
-        debugStep = "Connexion à Cloudflare DoH";
         final dohRes = await http.get(
-          Uri.parse('https://cloudflare-dns.com/dns-query?name=$host&type=A'),
-          headers: {'Accept': 'application/dns-json'},
+          Uri.parse('https://1.1.1.1/dns-query?name=$host&type=A'),
+          headers: {
+            'Accept': 'application/dns-json',
+            'Host': 'cloudflare-dns.com',
+          },
         ).timeout(const Duration(seconds: 5));
 
         if (dohRes.statusCode == 200) {
-          debugStream:
           final dohData = json.decode(dohRes.body);
           final answers = dohData['Answer'];
           if (answers != null && answers is List && answers.isNotEmpty) {
             final ip = answers.first['data'];
             targetUrl = serverUrl.replaceFirst(host, ip);
-            headers['Host'] = host;
-            debugStep = "IP trouvée: $ip";
-          } else {
-            debugStep = "Aucune IP trouvée via DoH (Answers vide)";
+            headers['Host'] = host; // Indispensable pour que le serveur IPTV accepte la requête par IP
           }
-        } else {
-          debugStep = "Erreur HTTP DoH: ${dohRes.statusCode}";
         }
-      } catch (dohErr) {
-        debugStep = "Exception DoH: $dohErr";
+      } catch (_) {
+        // En cas d'échec, on essaie de garder l'URL d'origine
       }
 
-      // Tentative de connexion finale
       final authUrl = Uri.parse('$targetUrl/player_api.php?username=$username&password=$password');
       final response = await http.get(authUrl, headers: headers).timeout(const Duration(seconds: 10));
 
@@ -133,7 +128,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } else {
         setState(() {
-          _errorMessage = 'Erreur serveur (Code ${response.statusCode}) [$debugStep].';
+          _errorMessage = 'Erreur de connexion au serveur (Code ${response.statusCode}).';
         });
       }
     } catch (e) {
