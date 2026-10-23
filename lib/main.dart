@@ -1,6 +1,7 @@
 ﻿import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
@@ -17,18 +18,16 @@ void main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
 
-    // 📱 Force l'application uniquement en mode paysage (horizontal) sur mobile/tablette
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    // 📱 Force l'application uniquement en mode paysage sur Mobile / Tablette (Android & iOS)
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    }
     
-    try {
-      MediaKit.ensureInitialized();
-    } catch (_) {}
-
-    // Configuration de la fenêtre uniquement sur les plateformes Desktop (Windows, macOS, Linux)
-    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+    // 💻 Configuration spécifique pour Windows / Desktop avant d'initialiser MediaKit et la vue
+    if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
       await windowManager.ensureInitialized();
 
       WindowOptions windowOptions = const WindowOptions(
@@ -44,6 +43,13 @@ void main() async {
         await windowManager.show();
         await windowManager.focus();
       });
+    }
+
+    // Initialisation sécurisée de MediaKit (placée après le gestionnaire de fenêtre sur PC)
+    try {
+      MediaKit.ensureInitialized();
+    } catch (e) {
+      debugPrint("Erreur MediaKit : $e");
     }
 
     runApp(const MyApp());

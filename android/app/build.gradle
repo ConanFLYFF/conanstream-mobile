@@ -32,9 +32,10 @@ android {
 
     buildTypes {
         release {
-            // Désactivation de R8 pour éviter l'incompatibilité de métadonnées avec Kotlin 2.2.0
-            minifyEnabled false
-            shrinkResources false
+            // Activation de l'obfuscation et de l'optimisation R8 / ProGuard
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig = signingConfigs.debug
         }
     }
