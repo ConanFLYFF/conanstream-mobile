@@ -10,6 +10,6 @@ workflows:
       - name: Get Flutter packages
         script: flutter pub get
       - name: Build APK Release
-        script: flutter build apk --release --android-skip-build-dependency-validation
+        script: flutter build apk --release --obfuscate --split-debug-info=build/app/outputs/symbols --android-skip-build-dependency-validation
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
