@@ -23,8 +23,8 @@ plugins {
 include ":app"
 ```[cite: 3]
 
-### Enregistre et pousse immédiatement :
+Pousse immédiatement la correction :
 ```powershell
 git add android/settings.gradle
-git commit -m "Nettoyage des caracteres Markdown parasites dans settings.gradle"
+git commit -m "Suppression de la derniere balise markdown parasite dans settings.gradle"
 git push origin main
