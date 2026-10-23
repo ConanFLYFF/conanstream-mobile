@@ -104,7 +104,8 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Impossible de joindre le serveur. Vérifiez l\'URL.';
+        // Affiche la véritable exception technique retournée par Flutter
+        _errorMessage = 'Erreur: $e';
       });
     } finally {
       if (mounted) {
