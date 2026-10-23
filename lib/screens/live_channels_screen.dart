@@ -180,12 +180,25 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
     }
   }
 
+  // --- EPG AVEC MISE EN CACHE INTELLIGENTE ---
   Future<void> _fetchEPG(String streamId) async {
-    setState(() {
-      isLoadingEpg = true;
-      epgList = [];
-    });
+    // 1. Essayer de charger le cache local en premier pour affichage instantané (0ms)
+    final cachedEpg = await SharedPrefsHelper.getCachedEpg(streamId);
+    if (cachedEpg != null && cachedEpg.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          epgList = cachedEpg;
+          isLoadingEpg = false;
+        });
+      }
+    } else {
+      setState(() {
+        isLoadingEpg = true;
+        epgList = [];
+      });
+    }
 
+    // 2. Requête réseau en arrière-plan pour rafraîchir / récupérer les données fraîches
     try {
       final String baseUrl = widget.serverUrl.endsWith('/')
           ? widget.serverUrl.substring(0, widget.serverUrl.length - 1)
@@ -199,9 +212,13 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         if (data is Map && data['epg_listings'] != null && data['epg_listings'] is List) {
+          final listings = data['epg_listings'] as List;
+          // Sauvegarde dans le cache intelligent
+          await SharedPrefsHelper.saveCachedEpg(streamId, listings);
+
           if (mounted) {
             setState(() {
-              epgList = data['epg_listings'];
+              epgList = listings;
               isLoadingEpg = false;
             });
           }
@@ -497,7 +514,7 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
                   ),
                   SizedBox(height: Platform.isAndroid ? 4 : 10),
                   Expanded(
-                    child: isLoadingEpg
+                    child: isLoadingEpg && epgList.isEmpty
                         ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
                         : epgList.isEmpty
                             ? Center(

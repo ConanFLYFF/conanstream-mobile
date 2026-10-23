@@ -207,6 +207,34 @@ class SharedPrefsHelper {
     AppLogger.action('IN_PROGRESS', 'Mise à jour en cours ($type) : ${itemMap['name']}');
   }
 
+  // --- GESTION DE LA MISE EN CACHE INTELLIGENTE EPG ---
+  
+  static Future<List<dynamic>?> getCachedEpg(String streamId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? cachedJson = prefs.getString('epg_cache_$streamId');
+    final int? cacheTime = prefs.getInt('epg_time_$streamId');
+
+    if (cachedJson != null && cacheTime != null) {
+      final DateTime savedTime = DateTime.fromMillisecondsSinceEpoch(cacheTime);
+      // Le cache est valide pendant 2 heures
+      if (DateTime.now().difference(savedTime) < const Duration(hours: 2)) {
+        try {
+          final decoded = json.decode(cachedJson);
+          if (decoded is List) return decoded;
+        } catch (_) {}
+      }
+    }
+    return null;
+  }
+
+  static Future<void> saveCachedEpg(String streamId, List<dynamic> listings) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('epg_cache_$streamId', json.encode(listings));
+    await prefs.setInt('epg_time_$streamId', DateTime.now().millisecondsSinceEpoch);
+  }
+
+  // ----------------------------------------------------
+
   static Future<void> setAudioLanguage(String lang) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('pref_audio_lang', lang);
