@@ -35,6 +35,8 @@ class _LoginScreenState extends State<LoginScreen> {
         _usernameController.text = lastAcc.username;
         _passwordController.text = lastAcc.password;
       });
+    } else {
+      _urlController.text = 'http://smartprotv.org';
     }
   }
 
@@ -56,7 +58,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
     HttpClient? client;
     try {
-      // Configuration d'un client HTTP natif qui force l'acceptation des certificats et contourne les blocages Android
       client = HttpClient();
       client.badCertificateCallback = (X509Certificate cert, String host, int port) => true;
       client.connectionTimeout = const Duration(seconds: 15);
@@ -64,7 +65,10 @@ class _LoginScreenState extends State<LoginScreen> {
       final authUri = Uri.parse('$serverUrl/player_api.php?username=$username&password=$password');
       
       final request = await client.getUrl(authUri);
-      request.headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+      
+      // User-Agent identique à IPTV Smarters Pro pour éviter le rejet serveur
+      request.headers.set('User-Agent', 'IPTVSmarterPro/3.1.5 (Linux; Android 12)');
+      request.headers.set('Accept', '*/*');
       
       final response = await request.close().timeout(const Duration(seconds: 15));
       final responseBody = await response.transform(utf8.decoder).join();
@@ -105,17 +109,17 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         } else {
           setState(() {
-            _errorMessage = 'Réponse invalide du serveur.';
+            _errorMessage = 'Réponse invalide du serveur Xtream.';
           });
         }
       } else {
         setState(() {
-          _errorMessage = 'Erreur HTTP code: ${response.statusCode}';
+          _errorMessage = 'Erreur serveur HTTP : ${response.statusCode}';
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Erreur technique : $e';
+        _errorMessage = 'Erreur de connexion : $e';
       });
     } finally {
       client?.close();
@@ -214,12 +218,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
 
-                    // Champ URL du serveur
                     TextFormField(
                       controller: _urlController,
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        labelText: 'URL du Serveur (ex: http://provider.com:80)',
+                        labelText: 'URL du Serveur',
                         labelStyle: const TextStyle(color: Colors.white60),
                         prefixIcon: const Icon(Icons.link, color: Colors.indigoAccent),
                         filled: true,
@@ -231,7 +234,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Champ Nom d'utilisateur
                     TextFormField(
                       controller: _usernameController,
                       style: const TextStyle(color: Colors.white),
@@ -248,7 +250,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Champ Mot de passe
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
@@ -266,7 +267,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 30),
 
-                    // Bouton de connexion
                     SizedBox(
                       width: double.infinity,
                       height: 50,
@@ -276,7 +276,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           elevation: 5,
-                          shadowColor: Colors.indigoAccent.withOpacity(0.5),
                         ),
                         onPressed: _isLoading ? null : _handleLogin,
                         child: _isLoading
