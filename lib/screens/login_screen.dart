@@ -1,4 +1,5 @@
 ﻿import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'home_screen.dart';
@@ -38,6 +39,34 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // Fonction DoH robuste par IP directe pour contourner les DNS FAI sur Android
+  Future<String?> _resolveDoH(String serverIp, String hostHeader, String targetDomain) async {
+    try {
+      final client = HttpClient();
+      client.badCertificateCallback = (cert, host, port) => true;
+      client.connectionTimeout = const Duration(seconds: 3);
+
+      final request = await client.getUrl(
+        Uri.parse('https://$serverIp/dns-query?name=$targetDomain&type=A'),
+      );
+      request.headers.set('Accept', 'application/dns-json');
+      request.headers.set('Host', hostHeader);
+
+      final response = await request.close().timeout(const Duration(seconds: 3));
+      if (response.statusCode == 200) {
+        final body = await response.transform(utf8.decoder).join();
+        final data = json.decode(body);
+        final answers = data['Answer'];
+        if (answers != null && answers is List && answers.isNotEmpty) {
+          client.close();
+          return answers.first['data'];
+        }
+      }
+      client.close();
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -62,41 +91,15 @@ class _LoginScreenState extends State<LoginScreen> {
       Map<String, String> headers = {};
       String? resolvedIp;
 
-      // 1. Première tentative de contournement via Cloudflare (1.1.1.1)
-      try {
-        final res = await http.get(
-          Uri.parse('https://1.1.1.1/dns-query?name=$host&type=A'),
-          headers: {'Accept': 'application/dns-json', 'Host': 'cloudflare-dns.com'},
-        ).timeout(const Duration(seconds: 3));
+      // 1. Essai via Cloudflare (1.1.1.1)
+      resolvedIp = await _resolveDoH('1.1.1.1', 'cloudflare-dns.com', host);
 
-        if (res.statusCode == 200) {
-          final data = json.decode(res.body);
-          final answers = data['Answer'];
-          if (answers != null && answers is List && answers.isNotEmpty) {
-            resolvedIp = answers.first['data'];
-          }
-        }
-      } catch (_) {}
-
-      // 2. Si Cloudflare échoue, tentative de secours automatique via Google (dns.google)
+      // 2. Secours via Google (8.8.8.8) si Cloudflare échoue
       if (resolvedIp == null) {
-        try {
-          final res = await http.get(
-            Uri.parse('https://dns.google/resolve?name=$host&type=A'),
-            headers: {'Accept': 'application/dns-json'},
-          ).timeout(const Duration(seconds: 3));
-
-          if (res.statusCode == 200) {
-            final data = json.decode(res.body);
-            final answers = data['Answer'];
-            if (answers != null && answers is List && answers.isNotEmpty) {
-              resolvedIp = answers.first['data'];
-            }
-          }
-        } catch (_) {}
+        resolvedIp = await _resolveDoH('8.8.8.8', 'dns.google', host);
       }
 
-      // Si une IP a été trouvée par l'un des deux services, on l'utilise
+      // Si une IP a été trouvée, on remplace le domaine et on fixe le Host header
       if (resolvedIp != null) {
         targetUrl = serverUrl.replaceFirst(host, resolvedIp);
         headers['Host'] = host;
