@@ -54,6 +54,7 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
       _exitFullScreen();
     }
 
+    // Configuration nettoyée (buffer optimisé)
     _player = Player(
       configuration: const PlayerConfiguration(
         bufferSize: 256 * 1024 * 1024,
