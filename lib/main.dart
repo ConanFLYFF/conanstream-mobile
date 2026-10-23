@@ -18,15 +18,19 @@ void main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
 
-    // 📱 Force l'application uniquement en mode paysage sur Mobile / Tablette (Android & iOS)
+    // 📱 Configuration Mobile / Tablette (Android & iOS)
     if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      // Force l'orientation uniquement en mode paysage
       await SystemChrome.setPreferredOrientations([
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
       ]);
+
+      // Mode plein écran immersif : masque la barre de statut et les touches de navigation système
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
     
-    // 💻 Configuration spécifique pour Windows / Desktop avant d'initialiser MediaKit et la vue
+    // 💻 Configuration spécifique pour Windows / Desktop avant d'initialiser MediaKit
     if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
       await windowManager.ensureInitialized();
 
@@ -45,7 +49,7 @@ void main() async {
       });
     }
 
-    // Initialisation sécurisée de MediaKit (placée après le gestionnaire de fenêtre sur PC)
+    // Initialisation sécurisée de MediaKit
     try {
       MediaKit.ensureInitialized();
     } catch (e) {
@@ -124,7 +128,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   }
 
   Future<void> _checkAccountAndNavigate() async {
-    // 1. Vérification de la licence et de la période d'essai
     final accessStatus = await ActivationService.checkAccessStatus();
     bool isAllowed = accessStatus['status'] ?? false;
     String reason = accessStatus['reason'] ?? 'EXPIRED';
@@ -132,7 +135,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     Widget targetScreen;
 
     if (!isAllowed) {
-      // Écran de blocage et de paiement si la période d'essai est expirée
       targetScreen = ActivationScreen(
         reason: reason,
         onActivated: () {
@@ -140,7 +142,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
         },
       );
     } else {
-      // Si l'accès est autorisé, vérifie s'il y a un compte enregistré
       final accounts = await SharedPrefsHelper.getAccounts();
       if (accounts.isNotEmpty) {
         final activeAccount = accounts.last;

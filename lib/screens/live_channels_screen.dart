@@ -324,13 +324,13 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
               }
             },
             child: ListTile(
-              contentPadding: EdgeInsets.symmetric(horizontal: Platform.isAndroid ? 4 : 0),
+              contentPadding: EdgeInsets.symmetric(horizontal: Platform.isAndroid ? 6 : 8),
               dense: true,
               leading: ClipRRect(
                 borderRadius: BorderRadius.circular(6),
                 child: SizedBox(
-                  width: Platform.isAndroid ? 30 : 40,
-                  height: Platform.isAndroid ? 30 : 40,
+                  width: Platform.isAndroid ? 32 : 40,
+                  height: Platform.isAndroid ? 32 : 40,
                   child: _isValidImageUrl(logoUrl)
                       ? CachedNetworkImage(
                           imageUrl: logoUrl,
@@ -346,7 +346,7 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
-                  fontSize: Platform.isAndroid ? 11 : 14,
+                  fontSize: Platform.isAndroid ? 12 : 14,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -747,10 +747,10 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
                         ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
                         : Row(
                             children: [
-                              // 1. Catégories
+                              // 1. Catégories (colonne de gauche)
                               if (!_isPlayerMaximized)
                                 SizedBox(
-                                  width: Platform.isAndroid ? 150 : 240,
+                                  width: Platform.isAndroid ? 140 : 240,
                                   child: Container(
                                     color: Colors.black.withOpacity(0.3),
                                     child: ListView.builder(
@@ -784,33 +784,26 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
                                   ),
                                 ),
                               
-                              // 2. Liste des chaînes
+                              // 2. Liste des chaînes (colonne centrale élargie)
                               if (!_isPlayerMaximized)
-                                Platform.isAndroid
-                                    ? SizedBox(
-                                        width: 190,
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: _buildChannelsList(),
-                                        ),
-                                      )
-                                    : Expanded(
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(12.0),
-                                          child: _buildChannelsList(),
-                                        ),
-                                      ),
+                                Expanded(
+                                  flex: Platform.isAndroid ? 3 : 2,
+                                  child: Padding(
+                                    padding: EdgeInsets.all(Platform.isAndroid ? 6.0 : 12.0),
+                                    child: _buildChannelsList(),
+                                  ),
+                                ),
 
-                              // 3. Panneau de droite (Vidéo + Guide)
-                              Platform.isAndroid && !_isPlayerMaximized
-                                  ? SizedBox(
-                                      width: 260,
-                                      child: _buildRightPanel(),
-                                    )
-                                  : Expanded(
-                                      flex: 1,
-                                      child: _buildRightPanel(),
-                                    ),
+                              // 3. Panneau de droite (Vidéo + Guide collés au bord droit)
+                              if (!_isPlayerMaximized)
+                                SizedBox(
+                                  width: Platform.isAndroid ? 280 : 360,
+                                  child: _buildRightPanel(),
+                                )
+                              else
+                                Expanded(
+                                  child: _buildRightPanel(),
+                                ),
                             ],
                           ),
                   ),
