@@ -21,7 +21,15 @@ workflows:
             --android-skip-build-dependency-validation
       - name: Générer et publier version.json sur GitHub
         script: |
-          # 1. Génération du fichier version.json
+          # 1. Vérification que le token est bien injecté par Codemagic
+          if [ -z "$GH_TOKEN" ]; then
+            echo "ERREUR : GH_TOKEN est vide ou non injecté par Codemagic !"
+            exit 1
+          else
+            echo "GH_TOKEN bien détecté (longueur : ${#GH_TOKEN})"
+          fi
+
+          # 2. Génération du fichier version.json
           cat <<EOF > version.json
           {
             "versionCode": $BUILD_NUMBER,
@@ -32,18 +40,14 @@ workflows:
           }
           EOF
 
-          # 2. Configuration Git et injection du token dans l'URL origin
+          # 3. Configuration Git
           git config --global user.name "Codemagic Bot"
           git config --global user.email "bot@codemagic.io"
-          
-          # Remplace l'URL distante par celle intégrant le token
-          git remote set-url origin https://$GH_TOKEN@github.com/ConanFLYFF/conanstream-mobile.git
-          
           git add version.json
           git commit -m "Auto-update version.json [Build #$BUILD_NUMBER] [skip ci]" || true
-          
-          # Push sécurisé vers main
-          git push origin main
+
+          # 4. Push direct sécurisé avec le GH_TOKEN
+          git push https://$GH_TOKEN@github.com/ConanFLYFF/conanstream-mobile.git HEAD:main
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
 
