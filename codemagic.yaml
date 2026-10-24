@@ -25,10 +25,6 @@ workflows:
     scripts:
       - name: Get Flutter packages
         script: flutter pub get
-      - name: Install CocoaPods
-        script: |
-          cd ios
-          pod install
       - name: Build IPA Release
         script: flutter build ipa --release --no-codesign
     artifacts:
