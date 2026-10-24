@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
@@ -9,6 +11,73 @@ import 'favorites_screen.dart';
 import 'in_progress_screen.dart';
 import 'shared_prefs_helper.dart';
 import 'glass_card.dart';
+
+// Fonction de parsing M3U en arrière-plan pour extraire strictement les VOD (Films)
+Map<String, dynamic> _parseM3uMoviesInBackground(String content) {
+  final lines = content.split('\n');
+  List<Map<String, dynamic>> movies = [];
+  Map<String, String> categoryMap = {};
+  int id = 1;
+
+  String currentName = '';
+  String currentLogo = '';
+  String currentGroup = 'Films';
+
+  for (var line in lines) {
+    line = line.trim();
+    if (line.startsWith('#EXTINF:')) {
+      currentName = '';
+      currentLogo = '';
+      currentGroup = 'Films';
+
+      final commaIndex = line.lastIndexOf(',');
+      if (commaIndex != -1 && commaIndex < line.length - 1) {
+        currentName = line.substring(commaIndex + 1).trim();
+      }
+
+      final logoMatch = RegExp(r'tvg-logo="([^"]*)"').firstMatch(line);
+      if (logoMatch != null) currentLogo = logoMatch.group(1) ?? '';
+
+      final groupMatch = RegExp(r'group-title="([^"]*)"').firstMatch(line);
+      if (groupMatch != null) currentGroup = groupMatch.group(1) ?? 'Films';
+    } else if (line.isNotEmpty && !line.startsWith('#')) {
+      final lowerUrl = line.toLowerCase();
+      
+      // Filtre strict : Vrai fichier vidéo et exclusion formelle du Live TV
+      final isVideoFile = lowerUrl.endsWith('.mp4') || 
+                          lowerUrl.endsWith('.mkv') || 
+                          lowerUrl.endsWith('.avi') || 
+                          lowerUrl.endsWith('.mov') ||
+                          lowerUrl.endsWith('.m4v');
+
+      final isLiveStream = lowerUrl.contains('/live/') || lowerUrl.endsWith('.m3u8') || lowerUrl.endsWith('.ts');
+
+      if (isVideoFile && !isLiveStream) {
+        categoryMap[currentGroup] = currentGroup;
+        movies.add({
+          'stream_id': id++,
+          'name': currentName.isEmpty ? 'Film sans titre' : currentName,
+          'stream_icon': currentLogo,
+          'category_id': currentGroup,
+          'category_name': currentGroup,
+          'stream_url': line,
+        });
+      }
+    }
+  }
+
+  List<Map<String, dynamic>> parsedCats = [
+    {'category_id': 'all', 'category_name': 'Tout'}
+  ];
+  categoryMap.keys.forEach((cat) {
+    parsedCats.add({'category_id': cat, 'category_name': cat});
+  });
+
+  return {
+    'categories': parsedCats,
+    'movies': movies,
+  };
+}
 
 class MoviesScreen extends StatefulWidget {
   final String serverUrl;
@@ -50,6 +119,35 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
   Future<void> _fetchCategoriesAndMovies() async {
     try {
+      final isLocalFile = !widget.serverUrl.startsWith('http://') && !widget.serverUrl.startsWith('https://');
+      final isM3uLink = widget.serverUrl.contains('.m3u') || widget.serverUrl.contains('.m3u8');
+
+      // --- TRAITEMENT SOURCE M3U / FICHIER LOCAL ---
+      if (isLocalFile || isM3uLink) {
+        String content = '';
+        if (isLocalFile) {
+          final file = File(widget.serverUrl);
+          if (await file.exists()) content = await file.readAsString();
+        } else {
+          final res = await http.get(Uri.parse(widget.serverUrl)).timeout(const Duration(seconds: 10));
+          if (res.statusCode == 200) content = res.body;
+        }
+
+        if (content.isNotEmpty) {
+          final parsedData = await compute(_parseM3uMoviesInBackground, content);
+          if (mounted) {
+            setState(() {
+              categories = parsedData['categories'];
+              allMovies = parsedData['movies'];
+              filteredMovies = parsedData['movies'];
+              isLoading = false;
+            });
+          }
+          return;
+        }
+      }
+
+      // --- TRAITEMENT SOURCE XTREAM API ---
       final String baseUrl = widget.serverUrl.endsWith('/')
           ? widget.serverUrl.substring(0, widget.serverUrl.length - 1)
           : widget.serverUrl;
@@ -57,8 +155,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
       final catUrl = Uri.parse('$baseUrl/player_api.php?username=${widget.username}&password=${widget.password}&action=get_vod_categories');
       final moviesUrl = Uri.parse('$baseUrl/player_api.php?username=${widget.username}&password=${widget.password}&action=get_vod_streams');
 
-      final catRes = await http.get(catUrl);
-      final moviesRes = await http.get(moviesUrl);
+      final catRes = await http.get(catUrl).timeout(const Duration(seconds: 10));
+      final moviesRes = await http.get(moviesUrl).timeout(const Duration(seconds: 10));
 
       List parsedCats = [
         {'category_id': 'all', 'category_name': 'Tout'}
@@ -78,10 +176,18 @@ class _MoviesScreenState extends State<MoviesScreen> {
             filteredMovies = moviesData;
             isLoading = false;
           });
+          return;
         }
       }
-    } catch (_) {
-      if (mounted) setState(() => isLoading = false);
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        categories = [{'category_id': 'all', 'category_name': 'Tout'}];
+        allMovies = [];
+        filteredMovies = [];
+        isLoading = false;
+      });
     }
   }
 
@@ -120,7 +226,6 @@ class _MoviesScreenState extends State<MoviesScreen> {
           ),
           Column(
             children: [
-              // Navigation supérieure
               Container(
                 color: const Color(0xFF0C101C).withOpacity(0.8),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -247,135 +352,142 @@ class _MoviesScreenState extends State<MoviesScreen> {
               Expanded(
                 child: isLoading
                     ? const Center(child: CircularProgressIndicator(color: Color(0xFFFF007F)))
-                    : Row(
-                        children: [
-                          Container(
-                            width: 250,
-                            color: Colors.black.withOpacity(0.3),
-                            child: ListView.builder(
-                              itemCount: categories.length,
-                              itemBuilder: (context, index) {
-                                final cat = categories[index];
-                                final catId = cat['category_id'].toString();
-                                final isSelected = selectedCategoryId == catId;
+                    : filteredMovies.isEmpty
+                        ? Center(
+                            child: Text(
+                              'Aucun film disponible sur cette source.',
+                              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14),
+                            ),
+                          )
+                        : Row(
+                            children: [
+                              Container(
+                                width: 250,
+                                color: Colors.black.withOpacity(0.3),
+                                child: ListView.builder(
+                                  itemCount: categories.length,
+                                  itemBuilder: (context, index) {
+                                    final cat = categories[index];
+                                    final catId = cat['category_id'].toString();
+                                    final isSelected = selectedCategoryId == catId;
 
-                                return ListTile(
-                                  dense: true,
-                                  selected: isSelected,
-                                  selectedTileColor: const Color(0xFFFF007F).withOpacity(0.15),
-                                  title: Text(
-                                    cat['category_name'],
-                                    style: TextStyle(
-                                      color: isSelected ? const Color(0xFFFF007F) : Colors.white70,
-                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  onTap: () {
-                                    setState(() {
-                                      selectedCategoryId = catId;
-                                      _applyFilters();
-                                    });
+                                    return ListTile(
+                                      dense: true,
+                                      selected: isSelected,
+                                      selectedTileColor: const Color(0xFFFF007F).withOpacity(0.15),
+                                      title: Text(
+                                        cat['category_name'],
+                                        style: TextStyle(
+                                          color: isSelected ? const Color(0xFFFF007F) : Colors.white70,
+                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      onTap: () {
+                                        setState(() {
+                                          selectedCategoryId = catId;
+                                          _applyFilters();
+                                        });
+                                      },
+                                    );
                                   },
-                                );
-                              },
-                            ),
-                          ),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: GridView.builder(
-                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 5,
-                                  childAspectRatio: 0.61,
-                                  crossAxisSpacing: 16,
-                                  mainAxisSpacing: 16,
                                 ),
-                                itemCount: filteredMovies.length,
-                                itemBuilder: (context, index) {
-                                  final item = filteredMovies[index];
-                                  final posterUrl = item['stream_icon'] ?? '';
-                                  final title = item['name'] ?? 'Film';
-                                  final movieId = item['stream_id'].toString();
-
-                                  return GlassCard(
-                                    borderColor: const Color(0xFFFF007F),
-                                    borderRadius: 12,
-                                    opacity: 0.1,
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => MovieDetailsScreen(
-                                            serverUrl: widget.serverUrl,
-                                            username: widget.username,
-                                            password: widget.password,
-                                            movie: item,
-                                          ),
-                                        ),
-                                      ).then((_) => setState(() {}));
-                                    },
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: Stack(
-                                            children: [
-                                              ClipRRect(
-                                                borderRadius: BorderRadius.circular(8),
-                                                child: _isValidImageUrl(posterUrl)
-                                                    ? CachedNetworkImage(
-                                                        imageUrl: posterUrl,
-                                                        fit: BoxFit.cover,
-                                                        width: double.infinity,
-                                                        placeholder: (context, url) => Container(color: Colors.white10),
-                                                        errorWidget: (context, url, error) => Container(
-                                                          color: Colors.white10,
-                                                          child: const Icon(Icons.movie, color: Colors.white38, size: 40),
-                                                        ),
-                                                      )
-                                                    : Container(
-                                                        color: Colors.white10,
-                                                        child: const Icon(Icons.movie, color: Colors.white38, size: 40),
-                                                      ),
-                                              ),
-                                              Positioned(
-                                                bottom: 0,
-                                                left: 0,
-                                                right: 0,
-                                                child: FutureBuilder<double>(
-                                                  future: SharedPrefsHelper.getVodProgress(movieId),
-                                                  builder: (context, snapshot) {
-                                                    final progress = snapshot.data ?? 0.0;
-                                                    if (progress <= 0.0) return const SizedBox.shrink();
-                                                    return LinearProgressIndicator(
-                                                      value: progress,
-                                                      backgroundColor: Colors.white24,
-                                                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFF007F)),
-                                                      minHeight: 4,
-                                                    );
-                                                  },
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          title,
-                                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
                               ),
-                            ),
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: GridView.builder(
+                                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 5,
+                                      childAspectRatio: 0.61,
+                                      crossAxisSpacing: 16,
+                                      mainAxisSpacing: 16,
+                                    ),
+                                    itemCount: filteredMovies.length,
+                                    itemBuilder: (context, index) {
+                                      final item = filteredMovies[index];
+                                      final posterUrl = item['stream_icon'] ?? '';
+                                      final title = item['name'] ?? 'Film';
+                                      final movieId = item['stream_id'].toString();
+
+                                      return GlassCard(
+                                        borderColor: const Color(0xFFFF007F),
+                                        borderRadius: 12,
+                                        opacity: 0.1,
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => MovieDetailsScreen(
+                                                serverUrl: widget.serverUrl,
+                                                username: widget.username,
+                                                password: widget.password,
+                                                movie: item,
+                                              ),
+                                            ),
+                                          ).then((_) => setState(() {}));
+                                        },
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Expanded(
+                                              child: Stack(
+                                                children: [
+                                                  ClipRRect(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    child: _isValidImageUrl(posterUrl)
+                                                        ? CachedNetworkImage(
+                                                            imageUrl: posterUrl,
+                                                            fit: BoxFit.cover,
+                                                            width: double.infinity,
+                                                            placeholder: (context, url) => Container(color: Colors.white10),
+                                                            errorWidget: (context, url, error) => Container(
+                                                              color: Colors.white10,
+                                                              child: const Icon(Icons.movie, color: Colors.white38, size: 40),
+                                                            ),
+                                                          )
+                                                        : Container(
+                                                            color: Colors.white10,
+                                                            child: const Icon(Icons.movie, color: Colors.white38, size: 40),
+                                                          ),
+                                                  ),
+                                                  Positioned(
+                                                    bottom: 0,
+                                                    left: 0,
+                                                    right: 0,
+                                                    child: FutureBuilder<double>(
+                                                      future: SharedPrefsHelper.getVodProgress(movieId),
+                                                      builder: (context, snapshot) {
+                                                        final progress = snapshot.data ?? 0.0;
+                                                        if (progress <= 0.0) return const SizedBox.shrink();
+                                                        return LinearProgressIndicator(
+                                                          value: progress,
+                                                          backgroundColor: Colors.white24,
+                                                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFF007F)),
+                                                          minHeight: 4,
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              title,
+                                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
               ),
             ],
           ),

@@ -1,6 +1,7 @@
 ﻿import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -14,6 +15,65 @@ import 'favorites_screen.dart';
 import 'in_progress_screen.dart';
 import 'shared_prefs_helper.dart';
 import 'glass_card.dart';
+
+// Fonction de parsing M3U exécutée en arrière-plan (Isolate) pour les listes massives
+Map<String, dynamic> _parseM3uInBackground(String content) {
+  final lines = content.split('\n');
+  List<Map<String, dynamic>> channels = [];
+  Map<String, String> categoryMap = {};
+
+  String currentName = 'Chaîne IPTV';
+  String currentLogo = '';
+  String currentGroup = 'Général';
+  int streamId = 1;
+
+  for (var line in lines) {
+    line = line.trim();
+    if (line.startsWith('#EXTINF:')) {
+      currentName = 'Chaîne';
+      currentLogo = '';
+      currentGroup = 'Général';
+
+      final commaIndex = line.lastIndexOf(',');
+      if (commaIndex != -1 && commaIndex < line.length - 1) {
+        currentName = line.substring(commaIndex + 1).trim();
+      }
+
+      final logoMatch = RegExp(r'tvg-logo="([^"]*)"').firstMatch(line);
+      if (logoMatch != null) {
+        currentLogo = logoMatch.group(1) ?? '';
+      }
+
+      final groupMatch = RegExp(r'group-title="([^"]*)"').firstMatch(line);
+      if (groupMatch != null) {
+        currentGroup = groupMatch.group(1) ?? 'Général';
+      }
+    } else if (line.isNotEmpty && !line.startsWith('#')) {
+      categoryMap[currentGroup] = currentGroup;
+      channels.add({
+        'stream_id': streamId++,
+        'name': currentName,
+        'stream_icon': currentLogo,
+        'category_id': currentGroup,
+        'category_name': currentGroup,
+        'stream_url': line,
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> parsedCats = [
+    {'category_id': 'all', 'category_name': 'Toutes les chaînes'}
+  ];
+  
+  categoryMap.keys.forEach((cat) {
+    parsedCats.add({'category_id': cat, 'category_name': cat});
+  });
+
+  return {
+    'categories': parsedCats,
+    'channels': channels,
+  };
+}
 
 class LiveChannelsScreen extends StatefulWidget {
   final String serverUrl;
@@ -48,15 +108,18 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
   
   bool _showOverlayControls = true;
   Timer? _hideTimer;
+  Timer? _streamTimeoutTimer; // Minuteur de sécurité anti-blocage muet
 
   Map? selectedChannel;
   late final Player _player;
   late final VideoController _controller;
 
-  // Variables pour la reconnexion automatique en cas de coupure de flux
   int _retryCount = 0;
   static const int _maxRetries = 3;
   StreamSubscription? _errorSubscription;
+
+  // Message d'erreur pro à afficher sur le lecteur en cas d'échec de flux
+  String? streamErrorMessage;
 
   @override
   void initState() {
@@ -65,7 +128,6 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
     _controller = VideoController(_player);
     _player.setVolume(_currentVolume);
 
-    // Écouteur global des erreurs du lecteur pour déclencher la reconnexion auto
     _errorSubscription = _player.stream.error.listen((error) {
       debugPrint("Erreur détectée sur le flux live : $error");
       if (selectedChannel != null) {
@@ -73,12 +135,13 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
       }
     });
 
-    _fetchCategoriesAndChannels();
+    _loadContent();
   }
 
   @override
   void dispose() {
     _hideTimer?.cancel();
+    _streamTimeoutTimer?.cancel();
     _errorSubscription?.cancel();
     _player.stop();
     _player.dispose();
@@ -155,8 +218,43 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
     return true;
   }
 
-  Future<void> _fetchCategoriesAndChannels() async {
+  Future<void> _loadContent() async {
     try {
+      final isLocalFile = !widget.serverUrl.startsWith('http://') && !widget.serverUrl.startsWith('https://');
+      final isM3uLink = widget.serverUrl.contains('.m3u') || widget.serverUrl.contains('.m3u8');
+
+      if (isLocalFile || isM3uLink) {
+        String content = '';
+        if (isLocalFile) {
+          final file = File(widget.serverUrl);
+          if (await file.exists()) {
+            content = await file.readAsString();
+          }
+        } else {
+          final res = await http.get(Uri.parse(widget.serverUrl));
+          if (res.statusCode == 200) {
+            content = res.body;
+          }
+        }
+
+        if (content.isNotEmpty) {
+          final parsedData = await compute(_parseM3uInBackground, content);
+          
+          if (mounted) {
+            setState(() {
+              categories = parsedData['categories'];
+              allChannels = parsedData['channels'];
+              filteredChannels = parsedData['channels'];
+              isLoading = false;
+              if (allChannels.isNotEmpty) {
+                _selectChannel(allChannels.first);
+              }
+            });
+          }
+          return;
+        }
+      }
+
       final String baseUrl = widget.serverUrl.endsWith('/')
           ? widget.serverUrl.substring(0, widget.serverUrl.length - 1)
           : widget.serverUrl;
@@ -190,13 +288,18 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
           });
         }
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint("Erreur de chargement des chaînes : $e");
       if (mounted) setState(() => isLoading = false);
     }
   }
 
-  // --- EPG AVEC MISE EN CACHE INTELLIGENTE ---
   Future<void> _fetchEPG(String streamId) async {
+    if (widget.serverUrl.contains('.m3u') || !widget.serverUrl.contains('player_api')) {
+      setState(() => isLoadingEpg = false);
+      return;
+    }
+
     final cachedEpg = await SharedPrefsHelper.getCachedEpg(streamId);
     if (cachedEpg != null && cachedEpg.isNotEmpty) {
       if (mounted) {
@@ -249,7 +352,7 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
   void _selectChannel(Map item) {
     setState(() {
       selectedChannel = item;
-      _retryCount = 0; // Réinitialise le compteur de tentatives lors d'un changement manuel
+      _retryCount = 0;
     });
     
     _openStreamWithAutoRecovery(item);
@@ -257,14 +360,27 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
   }
 
   void _openStreamWithAutoRecovery(Map item) {
-    final String baseUrl = widget.serverUrl.endsWith('/')
-        ? widget.serverUrl.substring(0, widget.serverUrl.length - 1)
-        : widget.serverUrl;
+    setState(() {
+      streamErrorMessage = null; // Réinitialise l'erreur lors du changement de chaîne
+    });
 
-    final streamId = item['stream_id'].toString();
-    final streamUrl = '$baseUrl/live/${widget.username}/${widget.password}/$streamId.ts';
+    // Annule le timer précédent pour éviter les conflits
+    _streamTimeoutTimer?.cancel();
 
-    // Ouverture du flux avec l'en-tête User-Agent VLC pour éviter les blocages
+    String streamUrl = '';
+
+    if (item.containsKey('stream_url')) {
+      streamUrl = item['stream_url'];
+    } else {
+      final String baseUrl = widget.serverUrl.endsWith('/')
+          ? widget.serverUrl.substring(0, widget.serverUrl.length - 1)
+          : widget.serverUrl;
+      final streamId = item['stream_id'].toString();
+      streamUrl = '$baseUrl/live/${widget.username}/${widget.password}/$streamId.ts';
+    }
+
+    debugPrint("Ouverture du flux : $streamUrl");
+
     _player.open(
       Media(
         streamUrl,
@@ -274,21 +390,32 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
       ),
     );
     _player.setVolume(_currentVolume);
+
+    // Sécurité anti-blocage muet : Si le flux ne répond pas au bout de 8 secondes, on déclenche l'échec
+    _streamTimeoutTimer = Timer(const Duration(seconds: 8), () {
+      if (mounted && selectedChannel?['stream_id'] == item['stream_id'] && streamErrorMessage == null) {
+        debugPrint("Délai d'attente dépassé (aucun signal ni erreur renvoyée).");
+        _handleStreamFailure(item);
+      }
+    });
   }
 
   void _handleStreamFailure(Map item) {
+    _streamTimeoutTimer?.cancel();
     if (_retryCount < _maxRetries) {
       _retryCount++;
-      debugPrint("Tentative de reconnexion automatique de la chaîne (${_retryCount}/$_maxRetries)...");
-      
-      // Attente de 2 secondes avant de retenter de relancer le flux
+      debugPrint("Tentative de reconnexion automatique (${_retryCount}/$_maxRetries)...");
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted && selectedChannel?['stream_id'] == item['stream_id']) {
           _openStreamWithAutoRecovery(item);
         }
       });
     } else {
-      debugPrint("Échec de la reconnexion automatique après $_maxRetries tentatives.");
+      if (mounted) {
+        setState(() {
+          streamErrorMessage = "Flux momentanément indisponible ou source externe inactive.";
+        });
+      }
     }
   }
 
@@ -501,6 +628,40 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
                       ),
                     ),
                   ),
+
+                  // Affichage du message d'erreur pro si le flux échoue définitivement ou freeze
+                  if (streamErrorMessage != null)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black.withOpacity(0.85),
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF3D00), size: 48),
+                            const SizedBox(height: 16),
+                            const Text(
+                              "Oups, impossible de lire ce flux",
+                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              streamErrorMessage!,
+                              style: const TextStyle(color: Colors.white70, fontSize: 13),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              "Essayez de sélectionner une autre chaîne dans la liste.",
+                              style: TextStyle(color: Color(0xFF00E5FF), fontSize: 12),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
                   if (_isPlayerMaximized)
                     Positioned(
                       bottom: 20,
@@ -806,7 +967,6 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
                         ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
                         : Row(
                             children: [
-                              // 1. Catégories (colonne de gauche)
                               if (!_isPlayerMaximized)
                                 SizedBox(
                                   width: Platform.isAndroid ? 140 : 240,
@@ -843,7 +1003,6 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
                                   ),
                                 ),
                               
-                              // 2. Liste des chaînes (colonne centrale élargie)
                               if (!_isPlayerMaximized)
                                 Expanded(
                                   flex: Platform.isAndroid ? 3 : 2,
@@ -853,7 +1012,6 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
                                   ),
                                 ),
 
-                              // 3. Panneau de droite (Vidéo + Guide collés au bord droit)
                               if (!_isPlayerMaximized)
                                 SizedBox(
                                   width: Platform.isAndroid ? 280 : 360,

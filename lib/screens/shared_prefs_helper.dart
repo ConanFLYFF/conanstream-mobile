@@ -43,6 +43,21 @@ class SharedPrefsHelper {
   static const String _accountsKey = 'saved_accounts_list';
   static const String _activeAccountKey = 'active_account_data';
 
+  // Génère un préfixe unique basé sur le compte actif pour cloisonner les données
+  static Future<String> _getAccountPrefix() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? activeJson = prefs.getString(_activeAccountKey);
+    if (activeJson != null && activeJson.isNotEmpty) {
+      try {
+        final Map<String, dynamic> decoded = json.decode(activeJson);
+        final profile = AccountProfile.fromJson(decoded);
+        final uniqueId = '${profile.serverUrl}_${profile.username}'.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+        return '${uniqueId}_';
+      } catch (_) {}
+    }
+    return 'default_';
+  }
+
   static Future<List<AccountProfile>> getAccounts() async {
     final prefs = await SharedPreferences.getInstance();
     final String? data = prefs.getString(_accountsKey);
@@ -88,13 +103,15 @@ class SharedPrefsHelper {
 
   static Future<double> getVodProgress(String vodId) async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getDouble('vod_progress_$vodId') ?? 0.0;
+    final prefix = await _getAccountPrefix();
+    return prefs.getDouble('${prefix}vod_progress_$vodId') ?? 0.0;
   }
 
   static Future<void> saveVodProgress(String vodId, double progress) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('vod_progress_$vodId', progress);
-    AppLogger.storage('vod_progress_$vodId', '${(progress * 100).toStringAsFixed(1)}%');
+    final prefix = await _getAccountPrefix();
+    await prefs.setDouble('${prefix}vod_progress_$vodId', progress);
+    AppLogger.storage('${prefix}vod_progress_$vodId', '${(progress * 100).toStringAsFixed(1)}%');
   }
 
   static String _normalizeKey(String key) {
@@ -106,9 +123,10 @@ class SharedPrefsHelper {
 
   static Future<List<dynamic>> getFavorites(String key) async {
     final prefs = await SharedPreferences.getInstance();
+    final prefix = await _getAccountPrefix();
     final normalizedKey = _normalizeKey(key);
     try {
-      final String? data = prefs.getString(normalizedKey);
+      final String? data = prefs.getString('$prefix$normalizedKey');
       if (data != null && data.isNotEmpty) {
         final decoded = json.decode(data);
         if (decoded is List) {
@@ -134,6 +152,7 @@ class SharedPrefsHelper {
 
   static Future<void> toggleFavorite(String key, dynamic item) async {
     final prefs = await SharedPreferences.getInstance();
+    final prefix = await _getAccountPrefix();
     final normalizedKey = _normalizeKey(key);
     List<dynamic> favorites = await getFavorites(normalizedKey);
 
@@ -169,7 +188,7 @@ class SharedPrefsHelper {
       AppLogger.action('FAVORITE', 'Ajout aux favoris ($normalizedKey) : ${itemMap['name']}');
     }
 
-    await prefs.setString(normalizedKey, json.encode(favorites));
+    await prefs.setString('$prefix$normalizedKey', json.encode(favorites));
   }
 
   static Future<bool> isFavorite(String key, String itemId) async {
@@ -185,6 +204,7 @@ class SharedPrefsHelper {
 
   static Future<void> trackInProgress(String type, Map<String, dynamic> item) async {
     final prefs = await SharedPreferences.getInstance();
+    final prefix = await _getAccountPrefix();
     final key = type == 'movie' ? 'in_progress_movies' : 'in_progress_series';
     List<dynamic> list = await getFavorites(key);
 
@@ -203,7 +223,7 @@ class SharedPrefsHelper {
     });
 
     list.insert(0, itemMap);
-    await prefs.setString(key, json.encode(list));
+    await prefs.setString('$prefix$key', json.encode(list));
     AppLogger.action('IN_PROGRESS', 'Mise à jour en cours ($type) : ${itemMap['name']}');
   }
 
@@ -216,7 +236,6 @@ class SharedPrefsHelper {
 
     if (cachedJson != null && cacheTime != null) {
       final DateTime savedTime = DateTime.fromMillisecondsSinceEpoch(cacheTime);
-      // Le cache est valide pendant 2 heures
       if (DateTime.now().difference(savedTime) < const Duration(hours: 2)) {
         try {
           final decoded = json.decode(cachedJson);

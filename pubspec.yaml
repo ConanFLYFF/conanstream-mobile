@@ -21,6 +21,7 @@ dependencies:
   network_info_plus: ^5.0.3
   crypto: ^3.0.3
   url_launcher: ^6.3.1
+  file_picker: ^8.1.4
 
 dev_dependencies:
   flutter_test:
@@ -30,11 +31,11 @@ dev_dependencies:
   flutter_lints: ^3.0.0
   flutter_launcher_icons: ^0.13.1
 
-# Configuration automatique de l'icône Android avec le logo du lion néon
 flutter_launcher_icons:
   android: true
+  windows: true
   ios: false
-  image_path: "assets/splash_logo.png"
+  image_path: "assets/iconelogo.png"
   min_sdk_android: 21
 
 flutter:
@@ -43,3 +44,4 @@ flutter:
   assets:
     - assets/logo.png
     - assets/splash_logo.png
+    - assets/iconelogo.png
