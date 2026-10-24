@@ -25,8 +25,7 @@ workflows:
     scripts:
       - name: Get Flutter packages
         script: flutter pub get
-      - name: Build IPA Release
-        script: flutter build ipa --release --no-codesign
+      - name: Build iOS App
+        script: flutter build ios --release --no-codesign
     artifacts:
-      - build/ios/ipa/*.ipa
-      - build/ios/iphoneos/*.app
+      - build/ios/iphoneos/Runner.app
