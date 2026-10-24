@@ -1,7 +1,8 @@
 workflows:
-  android-workflow:
-    name: Android Release Workflow
-    max_build_duration: 30
+  build-and-release:
+    name: Build and Auto-Release (Android & Windows)
+    max_build_duration: 60
+    instance_type: windows_x86_64
 
     # 🚀 Déclencheur automatique à chaque git push sur la branche main
     triggering:
@@ -15,50 +16,75 @@ workflows:
       groups:
         - github
       flutter: stable
-      xcode: latest
-      cocoapods: default
+
     scripts:
       - name: Get Flutter packages
         script: flutter pub get
+
+      # 1. Compilation APK Android
       - name: Build APK Release avec versioning automatique
         script: |
-          flutter build apk --release \
-            --build-number=$BUILD_NUMBER \
-            --build-name=1.0.$BUILD_NUMBER \
-            --obfuscate \
-            --split-debug-info=build/app/outputs/symbols \
+          flutter build apk --release `
+            --build-number=$BUILD_NUMBER `
+            --build-name=1.0.$BUILD_NUMBER `
+            --obfuscate `
+            --split-debug-info=build/app/outputs/symbols `
             --android-skip-build-dependency-validation
-      - name: Générer et publier version.json sur GitHub
+
+      # 2. Compilation Exécutable Windows
+      - name: Build Windows App
+        script: flutter build windows --release
+
+      # 3. Création de l'installeur Windows .exe avec Inno Setup
+      - name: Generer l'installeur Windows .exe
         script: |
-          # 1. Vérification que le token est bien injecté par Codemagic
-          if [ -z "$GH_TOKEN" ]; then
-            echo "ERREUR : GH_TOKEN est vide ou non injecté par Codemagic !"
+          choco install innosetup -y
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer_script.iss
+
+      # 4. Publication de la Release sur GitHub & mise à jour du version.json
+      - name: Publier la Release sur GitHub et mettre a jour version.json
+        script: |
+          # Vérification du token GitHub
+          if (-not $env:GH_TOKEN) {
+            Write-Error "ERREUR : GH_TOKEN manque dans l'environnement !"
             exit 1
-          else
-            echo "GH_TOKEN bien détecté (longueur : ${#GH_TOKEN})"
-          fi
-
-          # 2. Génération du fichier version.json
-          cat <<EOF > version.json
-          {
-            "versionCode": $BUILD_NUMBER,
-            "versionName": "1.0.$BUILD_NUMBER",
-            "apkUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.$BUILD_NUMBER/app-release.apk",
-            "exeUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.$BUILD_NUMBER/conanstream-windows.exe",
-            "releaseNotes": "Mise à jour automatique (Build #$BUILD_NUMBER)"
           }
-          EOF
 
-          # 3. Configuration Git
+          # Installation du CLI GitHub
+          choco install gh -y
+
+          # Connexion à GitHub via le token
+          echo $env:GH_TOKEN | gh auth login --with-token
+
+          # Création du Tag et de la Release GitHub avec l'APK Android et l'EXE Windows
+          gh release create "v1.0.$env:BUILD_NUMBER" `
+            "build/app/outputs/flutter-apk/app-release.apk" `
+            "conanstream-windows.exe" `
+            --title "Release v1.0.$env:BUILD_NUMBER" `
+            --notes "Mise a jour automatique (Build #$env:BUILD_NUMBER)"
+
+          # Génération du fichier version.json
+          $versionJson = @"
+          {
+            "versionCode": $env:BUILD_NUMBER,
+            "versionName": "1.0.$env:BUILD_NUMBER",
+            "apkUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.$env:BUILD_NUMBER/app-release.apk",
+            "exeUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.$env:BUILD_NUMBER/conanstream-windows.exe",
+            "releaseNotes": "Mise a jour automatique (Build #$env:BUILD_NUMBER)"
+          }
+          "@
+          Set-Content -Path "version.json" -Value $versionJson
+
+          # Push du fichier version.json sur la branche main
           git config --global user.name "Codemagic Bot"
           git config --global user.email "bot@codemagic.io"
           git add version.json
-          git commit -m "Auto-update version.json [Build #$BUILD_NUMBER] [skip ci]" || true
+          git commit -m "Auto-update version.json [Build #$env:BUILD_NUMBER] [skip ci]"
+          git push https://$($env:GH_TOKEN)@github.com/ConanFLYFF/conanstream-mobile.git HEAD:main
 
-          # 4. Push direct sécurisé avec le GH_TOKEN
-          git push https://$GH_TOKEN@github.com/ConanFLYFF/conanstream-mobile.git HEAD:main
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
+      - conanstream-windows.exe
 
   ios-workflow:
     name: iOS Release Workflow
