@@ -23,7 +23,6 @@ dependencies:
   url_launcher: ^6.3.1
   file_picker: ^8.1.4
   package_info_plus: ^8.0.0
-  r_upgrade: ^0.4.2
 
 dev_dependencies:
   flutter_test:

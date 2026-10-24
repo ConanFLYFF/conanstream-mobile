@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:r_upgrade/r_upgrade.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class UpdateService {
   static const String githubRepo = "ConanFLYFF/conanstream-mobile";
@@ -59,88 +59,45 @@ class UpdateService {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            bool isDownloading = false;
-            double progress = 0.0;
-
-            void startAutoUpgrade() async {
-              setState(() {
-                isDownloading = true;
-              });
-
-              // Télécharge et déclenche l'installation Android automatiquement
-              int? id = await RUpgrade.upgrade(
-                apkUrl,
-                fileName: 'conanstream-update.apk',
-                isAutoRequestInstall: true, // 👈 Lance l'installation dès la fin du téléchargement
-              );
-
-              // Écoute la progression du téléchargement
-              RUpgrade.stream.listen((DownloadInfo info) {
-                if (info.status == DownloadStatus.DOWNLOADING) {
-                  setState(() {
-                    progress = (info.percent ?? 0) / 100;
-                  });
-                } else if (info.status == DownloadStatus.STATUS_SUCCESSFUL) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0C101C),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: const [
+              Icon(Icons.system_update, color: Colors.cyanAccent),
+              SizedBox(width: 10),
+              Text('Mise à jour disponible 🚀', style: TextStyle(color: Colors.white, fontSize: 18)),
+            ],
+          ),
+          content: Text(
+            'Une nouvelle version ($version) est disponible. Cliquez sur "Mettre à jour" pour télécharger et installer la dernière version en un clic.',
+            style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Plus tard', style: TextStyle(color: Colors.white60)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.cyanAccent,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                final Uri url = Uri.parse(apkUrl);
+                if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
                   if (context.mounted) {
-                    Navigator.of(dialogContext).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Impossible d'ouvrir le lien de téléchargement.")),
+                    );
                   }
                 }
-              });
-            }
-
-            return AlertDialog(
-              backgroundColor: const Color(0xFF0C101C),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Row(
-                children: const [
-                  Icon(Icons.system_update, color: Colors.indigoAccent),
-                  SizedBox(width: 10),
-                  Text('Mise à jour disponible 🚀', style: TextStyle(color: Colors.white, fontSize: 18)),
-                ],
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Une nouvelle version ($version) est disponible. Cliquez sur Mettre à jour pour lancer l\'installation automatique.',
-                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
-                  ),
-                  if (isDownloading) ...[
-                    const SizedBox(height: 20),
-                    LinearProgressIndicator(
-                      value: progress > 0 ? progress : null,
-                      color: Colors.indigoAccent,
-                      backgroundColor: Colors.white10,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Téléchargement : ${(progress * 100).toStringAsFixed(0)}%',
-                      style: const TextStyle(color: Colors.indigoAccent, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ],
-              ),
-              actions: isDownloading
-                  ? []
-                  : [
-                      TextButton(
-                        onPressed: () => Navigator.pop(dialogContext),
-                        child: const Text('Plus tard', style: TextStyle(color: Colors.white60)),
-                      ),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.indigoAccent,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onPressed: startAutoUpgrade,
-                        child: const Text('METTRE À JOUR'),
-                      ),
-                    ],
-            );
-          },
+              },
+              child: const Text('METTRE À JOUR', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
         );
       },
     );
