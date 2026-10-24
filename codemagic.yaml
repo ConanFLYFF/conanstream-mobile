@@ -4,7 +4,7 @@ workflows:
     max_build_duration: 30
     environment:
       groups:
-        - github    # <--- TRÈS IMPORTANT : importe le groupe contenant ton GH_TOKEN
+        - github
       flutter: stable
       xcode: latest
       cocoapods: default
@@ -21,7 +21,7 @@ workflows:
             --android-skip-build-dependency-validation
       - name: Générer et publier version.json sur GitHub
         script: |
-          # Génération du fichier version.json compatible Android & Windows
+          # 1. Génération du fichier version.json
           cat <<EOF > version.json
           {
             "versionCode": $BUILD_NUMBER,
@@ -32,14 +32,18 @@ workflows:
           }
           EOF
 
-          # Envoi automatique sur GitHub avec authentification par token
+          # 2. Configuration Git et injection du token dans l'URL origin
           git config --global user.name "Codemagic Bot"
           git config --global user.email "bot@codemagic.io"
+          
+          # Remplace l'URL distante par celle intégrant le token
+          git remote set-url origin https://$GH_TOKEN@github.com/ConanFLYFF/conanstream-mobile.git
+          
           git add version.json
           git commit -m "Auto-update version.json [Build #$BUILD_NUMBER] [skip ci]" || true
           
-          # Push sécurisé utilisant la variable GH_TOKEN
-          git push https://$GH_TOKEN@github.com/ConanFLYFF/conanstream-mobile.git HEAD:main
+          # Push sécurisé vers main
+          git push origin main
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
 
