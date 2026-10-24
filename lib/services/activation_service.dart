@@ -6,6 +6,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 class ActivationService {
   static const String _keyPrefKey = "license_key";
   static const String _salt = "IPTV_PRO_MAX_SECRET_SALT_2026";
+  static const String appPrice = "5,00 €"; // Prix fixe de l'application / abonnement
 
   static Future<String> getDeviceId() async {
     DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
@@ -51,6 +52,7 @@ class ActivationService {
         'status': true,
         'reason': 'ACTIVATED',
         'days_remaining': 9999,
+        'price': appPrice,
       };
     }
 
@@ -71,12 +73,14 @@ class ActivationService {
         'status': true,
         'reason': 'IN_TRIAL',
         'days_remaining': daysRemaining,
+        'price': appPrice,
       };
     } else {
       return {
         'status': false,
         'reason': 'EXPIRED',
         'days_remaining': 0,
+        'price': appPrice,
       };
     }
   }

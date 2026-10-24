@@ -121,36 +121,42 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
     _mainController.forward();
 
-    Timer(const Duration(milliseconds: 5800), _checkAccountAndNavigate);
+    Timer(const Duration(milliseconds: 5800), _navigateToActivation);
   }
 
-  Future<void> _checkAccountAndNavigate() async {
+  Future<void> _navigateToActivation() async {
     final accessStatus = await ActivationService.checkAccessStatus();
-    bool isAllowed = accessStatus['status'] ?? false;
     String reason = accessStatus['reason'] ?? 'EXPIRED';
 
-    Widget targetScreen;
+    // On force l'affichage systématique de la page de paiement/activation à 5,00 € à chaque démarrage
+    Widget targetScreen = ActivationScreen(
+      reason: reason,
+      price: "5,00 €",
+      onActivated: () async {
+        // Lorsque l'utilisateur clique sur le bouton "Continuer" depuis l'écran d'activation :
+        final accounts = await SharedPrefsHelper.getAccounts();
+        if (!mounted) return;
 
-    if (!isAllowed) {
-      targetScreen = ActivationScreen(
-        reason: reason,
-        onActivated: () {
-          _checkAccountAndNavigate();
-        },
-      );
-    } else {
-      final accounts = await SharedPrefsHelper.getAccounts();
-      if (accounts.isNotEmpty) {
-        final activeAccount = accounts.last;
-        targetScreen = HomeScreen(
-          serverUrl: activeAccount.serverUrl,
-          username: activeAccount.username,
-          password: activeAccount.password,
-        );
-      } else {
-        targetScreen = const LoginScreen();
-      }
-    }
+        if (accounts.isNotEmpty) {
+          final activeAccount = accounts.last;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => HomeScreen(
+                serverUrl: activeAccount.serverUrl,
+                username: activeAccount.username,
+                password: activeAccount.password,
+              ),
+            ),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+          );
+        }
+      },
+    );
 
     if (!mounted) return;
 
