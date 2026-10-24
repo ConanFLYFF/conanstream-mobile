@@ -1,0 +1,68 @@
+name: Build and Auto-Release Android
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configuration de Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Configuration de Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: 'stable'
+
+      - name: Installation des dépendances
+        run: flutter pub get
+
+      - name: Compilation APK Release
+        run: |
+          flutter build apk --release \
+            --build-number=${{ github.run_number }} \
+            --build-name=1.0.${{ github.run_number }} \
+            --obfuscate \
+            --split-debug-info=build/app/outputs/symbols \
+            --android-skip-build-dependency-validation
+
+      - name: Création de la Release GitHub et mise à jour version.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Création de la Release sur GitHub avec l'APK
+          gh release create "v1.0.${{ github.run_number }}" \
+            "build/app/outputs/flutter-apk/app-release.apk" \
+            --title "Release v1.0.${{ github.run_number }}" \
+            --notes "Mise à jour automatique (Build #${{ github.run_number }})" || true
+
+          # Mettre à jour version.json
+          cat <<EOF > version.json
+          {
+            "versionCode": ${{ github.run_number }},
+            "versionName": "1.0.${{ github.run_number }}",
+            "apkUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.${{ github.run_number }}/app-release.apk",
+            "exeUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.${{ github.run_number }}/conanstream-windows.exe",
+            "releaseNotes": "Mise à jour automatique (Build #${{ github.run_number }})"
+          }
+          EOF
+
+          # Push automatique de version.json sur le dépôt
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git commit -m "Auto-update version.json [Build #${{ github.run_number }}] [skip ci]" || true
+          git push origin main
