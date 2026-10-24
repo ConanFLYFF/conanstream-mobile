@@ -2,6 +2,15 @@ workflows:
   android-workflow:
     name: Android Release Workflow
     max_build_duration: 30
+
+    # 🚀 Déclencheur automatique à chaque git push sur la branche main
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+
     environment:
       groups:
         - github
