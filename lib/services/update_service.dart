@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:ota_update/ota_update.dart';
+import 'package:url_launcher/url_launcher.dart'; // Pour ouvrir le lien de l'APK
 
 class UpdateService {
   // Ton dépôt GitHub
@@ -64,89 +64,41 @@ class UpdateService {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            bool isDownloading = false;
-            String downloadProgress = '0%';
-
-            void startDownload() {
-              setState(() {
-                isDownloading = true;
-              });
-
-              try {
-                // Télécharge l'APK et lance directement l'installation Android
-                OtaUpdate().execute(apkUrl, destinationFilename: 'app-update.apk').listen(
-                  (OtaEvent event) {
-                    if (event.status == OtaStatus.DOWNLOADING) {
-                      setState(() {
-                        downloadProgress = '${event.value}%';
-                      });
-                    } else if (event.status == OtaStatus.INSTALLING) {
-                      // Android prend la main pour afficher l'écran d'installation "Mettre à jour"
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-                  onError: (error) {
-                    setState(() {
-                      isDownloading = false;
-                    });
-                  },
-                );
-              } catch (e) {
-                setState(() {
-                  isDownloading = false;
-                });
-              }
-            }
-
-            return AlertDialog(
-              backgroundColor: const Color(0xFF0C101C),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Row(
-                children: const [
-                  Icon(Icons.system_update, color: Colors.indigoAccent),
-                  SizedBox(width: 10),
-                  Text('Mise à jour disponible 🚀', style: TextStyle(color: Colors.white, fontSize: 18)),
-                ],
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0C101C),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: const [
+              Icon(Icons.system_update, color: Colors.indigoAccent),
+              SizedBox(width: 10),
+              Text('Mise à jour disponible 🚀', style: TextStyle(color: Colors.white, fontSize: 18)),
+            ],
+          ),
+          content: Text(
+            'Une nouvelle version ($version) de ConanStream est disponible au téléchargement.',
+            style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Plus tard', style: TextStyle(color: Colors.white60)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigoAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Une nouvelle version ($version) de ConanStream est disponible.',
-                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
-                  ),
-                  const SizedBox(height: 20),
-                  if (isDownloading) ...[
-                    LinearProgressIndicator(color: Colors.indigoAccent, backgroundColor: Colors.white10),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Téléchargement en cours : $downloadProgress',
-                      style: const TextStyle(color: Colors.indigoAccent, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ],
-              ),
-              actions: isDownloading
-                  ? []
-                  : [
-                      TextButton(
-                        onPressed: () => Navigator.pop(dialogContext),
-                        child: const Text('Plus tard', style: TextStyle(color: Colors.white60)),
-                      ),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.indigoAccent,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onPressed: startDownload,
-                        child: const Text('OK / METTRE À JOUR'),
-                      ),
-                    ],
-            );
-          },
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                final uri = Uri.parse(apkUrl);
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+              child: const Text('TÉLÉCHARGER L\'APK'),
+            ),
+          ],
         );
       },
     );
