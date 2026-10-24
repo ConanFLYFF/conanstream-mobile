@@ -482,4 +482,40 @@ class _DeviceInfoScreenState extends State<DeviceInfoScreen> {
                                 errorBuilder: (_, __, ___) => const Icon(Icons.qr_code, size: 80, color: Colors.black),
                               ),
                             ),
-...
+                            const SizedBox(height: 10),
+
+                            InkWell(
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: _paypalLink));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Lien PayPal copié !"), duration: Duration(seconds: 1)),
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black38,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.white12),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.link, size: 14, color: Colors.cyanAccent),
+                                    SizedBox(width: 6),
+                                    Text("Copier le lien PayPal", style: TextStyle(color: Colors.cyanAccent, fontSize: 11)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+}
