@@ -19,17 +19,18 @@ workflows:
             --android-skip-build-dependency-validation
       - name: Générer et publier version.json sur GitHub
         script: |
-          # 1. Génération automatique du fichier version.json
+          # Génération du fichier version.json compatible Android & Windows
           cat <<EOF > version.json
           {
             "versionCode": $BUILD_NUMBER,
             "versionName": "1.0.$BUILD_NUMBER",
             "apkUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.$BUILD_NUMBER/app-release.apk",
+            "exeUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.$BUILD_NUMBER/conanstream-windows.exe",
             "releaseNotes": "Mise à jour automatique (Build #$BUILD_NUMBER)"
           }
           EOF
 
-          # 2. Configuration Git et envoi automatique du fichier version.json
+          # Envoi automatique sur GitHub
           git config --global user.name "Codemagic Bot"
           git config --global user.email "bot@codemagic.io"
           git add version.json
