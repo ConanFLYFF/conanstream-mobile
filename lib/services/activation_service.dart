@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -10,6 +11,9 @@ class ActivationService {
 
   // 🔑 Clé maître universelle dédiée à tes tests pour n'importe quel PC
   static const String masterTestKey = "CONAN-5EUR-TEST";
+
+  // 🌐 URL de ton futur serveur Webhook / API de vérification de paiement
+  static const String _activationServerUrl = "https://ton-domaine-activation.com/api/check.php";
 
   static Future<String> getDeviceId() async {
     DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
@@ -29,6 +33,37 @@ class ActivationService {
   static String generateLicenseKeyForDevice(String deviceId) {
     String raw = "${deviceId.toUpperCase()}_$_salt";
     return md5.convert(utf8.encode(raw)).toString().toUpperCase().substring(0, 16);
+  }
+
+  // 🚀 Tente d'interroger ton serveur pour voir si le paiement a été effectué pour cet appareil
+  static Future<bool> checkOnlineActivation() async {
+    try {
+      String devId = await getDeviceId();
+      HttpClient client = HttpClient();
+      client.badCertificateCallback = (cert, host, port) => true;
+
+      final uri = Uri.parse('$_activationServerUrl?device_id=$devId');
+      final request = await client.getUrl(uri).timeout(const Duration(seconds: 5));
+      final response = await request.close().timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        String responseBody = await response.transform(utf8.decoder).join();
+        Map<String, dynamic> data = json.decode(responseBody);
+
+        // Si le serveur Webhook PayPal valide le paiement pour ce device_id
+        if (data['status'] == 'PAID' || data['active'] == true) {
+          String expectedKey = generateLicenseKeyForDevice(devId);
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_keyPrefKey, expectedKey);
+          client.close();
+          return true;
+        }
+      }
+      client.close();
+    } catch (_) {
+      // Si pas d'internet ou serveur non disponible, on ignore silencieusement
+    }
+    return false;
   }
 
   static Future<bool> activateLicense(String inputKey) async {
@@ -53,6 +88,7 @@ class ActivationService {
     String devId = await getDeviceId();
     String expectedKey = generateLicenseKeyForDevice(devId);
 
+    // 1. Si déjà activé en local
     if (savedKey != null && savedKey == expectedKey) {
       return {
         'status': true,
@@ -62,6 +98,18 @@ class ActivationService {
       };
     }
 
+    // 2. Vérification automatique en ligne si le paiement Webhook est passé
+    bool onlineActivated = await checkOnlineActivation();
+    if (onlineActivated) {
+      return {
+        'status': true,
+        'reason': 'ACTIVATED',
+        'days_remaining': 9999,
+        'price': appPrice,
+      };
+    }
+
+    // 3. Sinon, mode période d'essai 5 jours
     return {
       'status': true,
       'reason': 'IN_TRIAL',

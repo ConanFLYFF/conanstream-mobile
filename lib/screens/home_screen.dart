@@ -12,6 +12,7 @@ import 'favorites_screen.dart';
 import 'in_progress_screen.dart';
 import 'settings_screen.dart';
 import 'login_screen.dart';
+import '../services/update_service.dart'; // 👈 Import du service de mise à jour
 
 class HomeScreen extends StatefulWidget {
   final String serverUrl;
@@ -39,6 +40,13 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _updateTime();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) => _updateTime());
+
+    // 🚀 Vérifie automatiquement les mises à jour GitHub 3 secondes après l'ouverture
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        UpdateService.checkForUpdates(context);
+      }
+    });
   }
 
   void _updateTime() {
