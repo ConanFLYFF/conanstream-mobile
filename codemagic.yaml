@@ -3,6 +3,8 @@ workflows:
     name: Android Release Workflow
     max_build_duration: 30
     environment:
+      groups:
+        - github    # <--- TRÈS IMPORTANT : importe le groupe contenant ton GH_TOKEN
       flutter: stable
       xcode: latest
       cocoapods: default
@@ -30,12 +32,14 @@ workflows:
           }
           EOF
 
-          # Envoi automatique sur GitHub
+          # Envoi automatique sur GitHub avec authentification par token
           git config --global user.name "Codemagic Bot"
           git config --global user.email "bot@codemagic.io"
           git add version.json
           git commit -m "Auto-update version.json [Build #$BUILD_NUMBER] [skip ci]" || true
-          git push origin main
+          
+          # Push sécurisé utilisant la variable GH_TOKEN
+          git push https://$GH_TOKEN@github.com/ConanFLYFF/conanstream-mobile.git HEAD:main
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
 
