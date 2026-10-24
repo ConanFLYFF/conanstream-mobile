@@ -1,8 +1,8 @@
 workflows:
   build-and-release:
-    name: Build and Auto-Release (Android & Windows)
+    name: Build and Auto-Release Android
     max_build_duration: 60
-    instance_type: windows_x2
+    instance_type: linux
 
     triggering:
       events:
@@ -23,60 +23,49 @@ workflows:
       # 1. Compilation APK Android
       - name: Build APK Release avec versioning automatique
         script: |
-          flutter build apk --release `
-            --build-number=$env:BUILD_NUMBER `
-            --build-name="1.0.$env:BUILD_NUMBER" `
-            --obfuscate `
-            --split-debug-info=build/app/outputs/symbols `
+          flutter build apk --release \
+            --build-number=$BUILD_NUMBER \
+            --build-name=1.0.$BUILD_NUMBER \
+            --obfuscate \
+            --split-debug-info=build/app/outputs/symbols \
             --android-skip-build-dependency-validation
 
-      # 2. Compilation Exécutable Windows
-      - name: Build Windows App
-        script: flutter build windows --release
-
-      # 3. Création de l'installeur Windows .exe avec Inno Setup
-      - name: Generer l'installeur Windows .exe
-        script: |
-          choco install innosetup -y
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer_script.iss
-
-      # 4. Publication de la Release sur GitHub & mise à jour du version.json
+      # 2. Publication de la Release sur GitHub & mise à jour du version.json
       - name: Publier la Release sur GitHub et mettre a jour version.json
         script: |
-          if (-not $env:GH_TOKEN) {
-            Write-Error "ERREUR : GH_TOKEN manque dans l'environnement !"
+          if [ -z "$GH_TOKEN" ]; then
+            echo "ERREUR : GH_TOKEN manque dans l'environnement !"
             exit 1
-          }
+          fi
 
-          choco install gh -y
-          echo $env:GH_TOKEN | gh auth login --with-token
+          # Installation du CLI GitHub si nécessaire
+          type gh >/dev/null 2>&1 || sudo apt-get update && sudo apt-get install -y gh
 
-          gh release create "v1.0.$env:BUILD_NUMBER" `
-            "build/app/outputs/flutter-apk/app-release.apk" `
-            "conanstream-windows.exe" `
-            --title "Release v1.0.$env:BUILD_NUMBER" `
-            --notes "Mise a jour automatique (Build #$env:BUILD_NUMBER)"
+          echo "$GH_TOKEN" | gh auth login --with-token
 
-          $versionJson = @"
+          gh release create "v1.0.$BUILD_NUMBER" \
+            "build/app/outputs/flutter-apk/app-release.apk" \
+            --title "Release v1.0.$BUILD_NUMBER" \
+            --notes "Mise a jour automatique (Build #$BUILD_NUMBER)" || true
+
+          cat <<EOF > version.json
           {
-            "versionCode": $env:BUILD_NUMBER,
-            "versionName": "1.0.$env:BUILD_NUMBER",
-            "apkUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.$env:BUILD_NUMBER/app-release.apk",
-            "exeUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.$env:BUILD_NUMBER/conanstream-windows.exe",
-            "releaseNotes": "Mise a jour automatique (Build #$env:BUILD_NUMBER)"
+            "versionCode": $BUILD_NUMBER,
+            "versionName": "1.0.$BUILD_NUMBER",
+            "apkUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.$BUILD_NUMBER/app-release.apk",
+            "exeUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.$BUILD_NUMBER/conanstream-windows.exe",
+            "releaseNotes": "Mise a jour automatique (Build #$BUILD_NUMBER)"
           }
-          "@
-          Set-Content -Path "version.json" -Value $versionJson
+          EOF
 
           git config --global user.name "Codemagic Bot"
           git config --global user.email "bot@codemagic.io"
           git add version.json
-          git commit -m "Auto-update version.json [Build #$env:BUILD_NUMBER] [skip ci]"
-          git push https://$($env:GH_TOKEN)@github.com/ConanFLYFF/conanstream-mobile.git HEAD:main
+          git commit -m "Auto-update version.json [Build #$BUILD_NUMBER] [skip ci]" || true
+          git push https://$GH_TOKEN@github.com/ConanFLYFF/conanstream-mobile.git HEAD:main
 
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
-      - conanstream-windows.exe
 
   ios-workflow:
     name: iOS Release Workflow
