@@ -6,7 +6,10 @@ import 'package:device_info_plus/device_info_plus.dart';
 class ActivationService {
   static const String _keyPrefKey = "license_key";
   static const String _salt = "IPTV_PRO_MAX_SECRET_SALT_2026";
-  static const String appPrice = "5,00 €"; // Prix fixe de l'application / abonnement
+  static const String appPrice = "5,00 €";
+
+  // 🔑 Clé maître universelle dédiée à tes tests pour n'importe quel PC
+  static const String masterTestKey = "CONAN-5EUR-TEST";
 
   static Future<String> getDeviceId() async {
     DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
@@ -29,10 +32,13 @@ class ActivationService {
   }
 
   static Future<bool> activateLicense(String inputKey) async {
+    String cleanedInput = inputKey.trim().toUpperCase();
+    
     String devId = await getDeviceId();
     String expectedKey = generateLicenseKeyForDevice(devId);
 
-    if (inputKey.trim().toUpperCase() == expectedKey) {
+    // On valide soit la clé générée pour l'appareil, soit la clé maître de test
+    if (cleanedInput == expectedKey || cleanedInput == masterTestKey) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_keyPrefKey, expectedKey);
       return true;
@@ -56,32 +62,11 @@ class ActivationService {
       };
     }
 
-    const String firstLaunchKey = "first_launch_date";
-    int? firstLaunch = prefs.getInt(firstLaunchKey);
-
-    if (firstLaunch == null) {
-      firstLaunch = DateTime.now().millisecondsSinceEpoch;
-      await prefs.setInt(firstLaunchKey, firstLaunch);
-    }
-
-    DateTime startDate = DateTime.fromMillisecondsSinceEpoch(firstLaunch);
-    int daysPassed = DateTime.now().difference(startDate).inDays;
-    int daysRemaining = 5 - daysPassed;
-
-    if (daysRemaining > 0) {
-      return {
-        'status': true,
-        'reason': 'IN_TRIAL',
-        'days_remaining': daysRemaining,
-        'price': appPrice,
-      };
-    } else {
-      return {
-        'status': false,
-        'reason': 'EXPIRED',
-        'days_remaining': 0,
-        'price': appPrice,
-      };
-    }
+    return {
+      'status': true,
+      'reason': 'IN_TRIAL',
+      'days_remaining': 5,
+      'price': appPrice,
+    };
   }
 }

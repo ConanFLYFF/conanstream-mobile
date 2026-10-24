@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -84,7 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: const Color(0xFF030509),
       body: Column(
         children: [
-          // --- Barre de titre sur mesure (Windows Desktop) ---
+          // --- Barre de titre sur mesure 100% stable (Windows Desktop) ---
           if (!kIsWeb && Platform.isWindows)
             Container(
               height: 34,
@@ -107,9 +108,30 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-                  const WindowCaption(
-                    brightness: Brightness.dark,
-                    backgroundColor: Colors.transparent,
+                  // Bouton Réduire
+                  IconButton(
+                    icon: const Icon(Icons.remove, size: 16, color: Colors.white70),
+                    onPressed: () => windowManager.minimize(),
+                    splashRadius: 15,
+                  ),
+                  // Bouton Agrandir / Restaurer
+                  IconButton(
+                    icon: const Icon(Icons.crop_square, size: 14, color: Colors.white70),
+                    onPressed: () async {
+                      if (await windowManager.isMaximized()) {
+                        windowManager.unmaximize();
+                      } else {
+                        windowManager.maximize();
+                      }
+                    },
+                    splashRadius: 15,
+                  ),
+                  // Bouton Fermer
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 16, color: Colors.white70),
+                    onPressed: () => windowManager.close(),
+                    splashRadius: 15,
+                    hoverColor: Colors.red,
                   ),
                 ],
               ),
@@ -219,9 +241,26 @@ class _HomeScreenState extends State<HomeScreen> {
                                   children: [
                                     const Icon(Icons.account_circle_rounded, color: Color(0xFF00E5FF), size: 20),
                                     const SizedBox(width: 10),
-                                    Text(
-                                      widget.username,
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 13),
+                                    ConstrainedBox(
+                                      constraints: const BoxConstraints(maxWidth: 180),
+                                      child: Text(
+                                        () {
+                                          try {
+                                            if (widget.username.startsWith('{')) {
+                                              final data = jsonDecode(widget.username);
+                                              return data['name'] ?? data['username'] ?? data['id'] ?? widget.username;
+                                            }
+                                          } catch (_) {}
+                                          return widget.username;
+                                        }(),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 13,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
                                     ),
                                   ],
                                 ),

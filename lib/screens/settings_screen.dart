@@ -59,12 +59,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _fetchServerUserInfoIfNeeded();
   }
 
+  String get _cleanUsername {
+    try {
+      if (widget.username.startsWith('{')) {
+        final data = jsonDecode(widget.username);
+        return data['username'] ?? data['name'] ?? data['id'] ?? widget.username;
+      }
+    } catch (_) {}
+    return widget.username;
+  }
+
   Future<void> _fetchServerUserInfoIfNeeded() async {
-    // Si userInfo est vide, on interroge directement l'API Xtream Codes du fournisseur
     Map info = widget.userInfo['user_info'] ?? widget.userInfo;
     if (info.isEmpty && widget.serverUrl.isNotEmpty && widget.username.isNotEmpty) {
       try {
-        final url = Uri.parse('${widget.serverUrl}/player_api.php?username=${widget.username}&password=${widget.password}');
+        final url = Uri.parse('${widget.serverUrl}/player_api.php?username=$_cleanUsername&password=${widget.password}');
         final response = await http.get(url).timeout(const Duration(seconds: 5));
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
@@ -87,8 +96,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadAppLicenseStatus() async {
     var accessStatus = await ActivationService.checkAccessStatus();
-    bool activated = accessStatus['reason'] == 'ACTIVATED';
-    bool trial = accessStatus['reason'] == 'IN_TRIAL';
+    String reason = accessStatus['reason'] ?? 'IN_TRIAL';
+    bool activated = reason == 'ACTIVATED';
+    bool trial = reason == 'IN_TRIAL';
     int daysLeft = accessStatus['days_remaining'] ?? 5;
 
     if (mounted) {
@@ -147,7 +157,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         parsedTimestamp = int.parse(timestamp.toString());
       }
 
-      // Si le timestamp est en millisecondes
       if (parsedTimestamp > 100000000000) {
         parsedTimestamp = (parsedTimestamp / 1000).round();
       }
@@ -210,7 +219,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       itemCount: _savedAccounts.length,
                       itemBuilder: (context, index) {
                         final acc = _savedAccounts[index];
-                        final isCurrent = acc.username == widget.username;
+                        final isCurrent = acc.username == _cleanUsername;
 
                         return ListTile(
                           title: Text(acc.username, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -312,7 +321,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               contentPadding: EdgeInsets.zero,
                               leading: const Icon(Icons.verified_user_rounded, color: Color(0xFF00E5FF)),
                               title: const Text('Gestion de Licence & Paiement', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                              subtitle: const Text('Voir l\'adresse MAC et acheter la licence à vie (29,99 €)', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                              subtitle: const Text('Voir l\'adresse MAC et acheter la licence à vie (5,00 €)', style: TextStyle(color: Colors.white54, fontSize: 12)),
                               trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF00E5FF)),
                               onTap: () {
                                 Navigator.push(
@@ -339,7 +348,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         opacity: 0.08,
                         child: Column(
                           children: [
-                            _infoRow('Compte Fournisseur :', widget.username, Colors.white),
+                            _infoRow('Compte Fournisseur :', _cleanUsername, Colors.white),
                             const Divider(color: Colors.white10, height: 24),
                             _infoRow('Statut du serveur :', providerStatus, const Color(0xFF00E676)),
                             const Divider(color: Colors.white10, height: 24),
@@ -510,7 +519,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: const TextStyle(color: Colors.white60, fontSize: 15)),
-        Text(value, style: TextStyle(color: valueColor, fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(width: 16),
+        Flexible(
+          child: Text(
+            value,
+            style: TextStyle(color: valueColor, fontSize: 15, fontWeight: FontWeight.bold),
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.end,
+          ),
+        ),
       ],
     );
   }

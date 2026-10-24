@@ -60,7 +60,7 @@ class _DeviceInfoScreenState extends State<DeviceInfoScreen> {
     });
   }
 
-  /// Ouvre le navigateur sur la page de paiement PayPal 29,99 €
+  /// Ouvre le navigateur sur la page de paiement PayPal 5,00 €
   Future<void> _launchPayPalPayment() async {
     final Uri url = Uri.parse(_paypalLink);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
@@ -389,7 +389,7 @@ class _DeviceInfoScreenState extends State<DeviceInfoScreen> {
                   ),
                   const SizedBox(width: 30),
 
-                  // PARTIE DROITE : Système de Paiement Automatique PayPal (29,99 €)
+                  // PARTIE DROITE : Système de Paiement Automatique PayPal (5,00 €)
                   Expanded(
                     flex: 2,
                     child: Container(
@@ -405,7 +405,7 @@ class _DeviceInfoScreenState extends State<DeviceInfoScreen> {
                           const Icon(Icons.verified_rounded, size: 44, color: Colors.cyanAccent),
                           const SizedBox(height: 10),
                           const Text(
-                            "Licence à Vie : 29,99 €",
+                            "Licence à Vie : 5,00 €",
                             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.amber),
                           ),
                           const SizedBox(height: 6),
@@ -431,7 +431,7 @@ class _DeviceInfoScreenState extends State<DeviceInfoScreen> {
                                 ),
                                 icon: const Icon(Icons.payment, color: Colors.black),
                                 label: const Text(
-                                  "PAYER 29,99 € VIA PAYPAL",
+                                  "PAYER 5,00 € VIA PAYPAL",
                                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                                 ),
                                 onPressed: _launchPayPalPayment,

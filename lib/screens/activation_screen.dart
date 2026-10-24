@@ -5,9 +5,15 @@ import '../services/activation_service.dart';
 
 class ActivationScreen extends StatefulWidget {
   final String reason;
-  final VoidCallback onActivated;
+  final String price;
+  final Future<void> Function(BuildContext context) onActivated; // 👈 Modifié ici pour accepter le context
 
-  const ActivationScreen({super.key, required this.reason, required this.onActivated});
+  const ActivationScreen({
+    super.key,
+    required this.reason,
+    this.price = "5,00 €",
+    required this.onActivated,
+  });
 
   @override
   State<ActivationScreen> createState() => _ActivationScreenState();
@@ -19,26 +25,12 @@ class _ActivationScreenState extends State<ActivationScreen> {
   bool _isLoading = false;
   bool _isVerifyingPayment = false;
 
-  // Lien PayPal Pro configuré avec ton adresse e-mail
   final String _paypalLink = "https://www.paypal.com/paypalme/teddyjacquet";
 
-  String get _title {
-    if (widget.reason == 'INVALID_NETWORK') return "Réseau non autorisé";
-    if (widget.reason == 'INVALID_DEVICE') return "Appareil non autorisé";
-    return "Période d'essai expirée";
-  }
+  String get _title => "Période d'essai en cours";
 
-  String get _message {
-    if (widget.reason == 'INVALID_NETWORK') {
-      return "Cette application est liée à votre réseau initial. Veuillez vous y reconnecter pour lancer l'application.";
-    }
-    if (widget.reason == 'INVALID_DEVICE') {
-      return "Cette application est verrouillée sur un autre appareil.";
-    }
-    return "Vos 5 jours d'essai gratuit sont terminés. Obtenez votre licence à vie (5,00 €) pour débloquer l'application instantanément.";
-  }
+  String get _message => "Vous êtes dans votre période d'essai gratuit de 5 jours. Profitez de l'application ou obtenez la licence à vie (${widget.price}).";
 
-  /// Ouvre le navigateur sur la page de paiement PayPal 5,00 €
   Future<void> _launchPayPalPayment() async {
     final Uri url = Uri.parse(_paypalLink);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
@@ -50,7 +42,6 @@ class _ActivationScreenState extends State<ActivationScreen> {
     }
   }
 
-  /// Déblocage automatique après paiement direct
   Future<void> _autoActivateAfterPayment() async {
     setState(() {
       _isVerifyingPayment = true;
@@ -65,7 +56,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
 
     if (mounted) {
       if (success) {
-        widget.onActivated();
+        widget.onActivated(context); // 👈 Passage du context
       } else {
         setState(() {
           _isVerifyingPayment = false;
@@ -76,6 +67,8 @@ class _ActivationScreenState extends State<ActivationScreen> {
   }
 
   void _submitKey() async {
+    if (_keyController.text.trim().isEmpty) return;
+
     setState(() {
       _isLoading = true;
       _errorMessage = '';
@@ -83,12 +76,14 @@ class _ActivationScreenState extends State<ActivationScreen> {
 
     bool success = await ActivationService.activateLicense(_keyController.text);
 
+    if (!mounted) return;
+
     setState(() {
       _isLoading = false;
     });
 
     if (success) {
-      widget.onActivated();
+      widget.onActivated(context); // 👈 Passage du context
     } else {
       setState(() {
         _errorMessage = "Clé d'activation invalide.";
@@ -97,16 +92,23 @@ class _ActivationScreenState extends State<ActivationScreen> {
   }
 
   @override
+  void dispose() {
+    _keyController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false, // Empêche le retour en arrière pour bloquer l'accès tant que non payé
+      canPop: false,
       child: Scaffold(
         backgroundColor: const Color(0xFF050505),
         body: Center(
           child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
             child: Container(
               width: 520,
-              padding: const EdgeInsets.all(36),
+              padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
                 color: const Color(0xFF121212),
                 borderRadius: BorderRadius.circular(20),
@@ -122,7 +124,11 @@ class _ActivationScreenState extends State<ActivationScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.lock_outline_rounded, size: 64, color: Colors.cyanAccent),
+                  const Icon(
+                    Icons.timer_outlined,
+                    size: 64,
+                    color: Colors.greenAccent,
+                  ),
                   const SizedBox(height: 20),
                   Text(
                     _title,
@@ -134,103 +140,124 @@ class _ActivationScreenState extends State<ActivationScreen> {
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.grey, fontSize: 14, height: 1.5),
                   ),
-                  const SizedBox(height: 30),
-                  if (widget.reason == 'EXPIRED' || widget.reason == 'IN_TRIAL') ...[
-                    // BOUTON DE PAIEMENT DIRECT PAYPAL (5,00 €)
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFFC439),
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        icon: const Icon(Icons.payment, color: Colors.black),
-                        label: const Text(
-                          "PAYER 5,00 € VIA PAYPAL",
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        onPressed: _launchPayPalPayment,
+                  const SizedBox(height: 28),
+
+                  // BOUTON DE PAIEMENT PAYPAL
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFC439),
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.payment, color: Colors.black),
+                      label: Text(
+                        "PAYER ${widget.price} VIA PAYPAL",
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      onPressed: _launchPayPalPayment,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // BOUTON DE DÉBLOCAGE AUTOMATIQUE POST-PAIEMENT
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.greenAccent,
+                        side: const BorderSide(color: Colors.greenAccent),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: _isVerifyingPayment
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.greenAccent),
+                            )
+                          : const Icon(Icons.check_circle_outline, color: Colors.greenAccent),
+                      label: const Text(
+                        "J'ai payé, Débloquer à vie",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      onPressed: _isVerifyingPayment ? null : _autoActivateAfterPayment,
+                    ),
+                  ),
+
+                  // 🔥 BOUTON ACCÉDER À L'ACCUEIL FORCÉ ET VISIBLE
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.cyanAccent,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () => widget.onActivated(context), // 👈 Passage du context au clic
+                      child: const Text(
+                        "ACCÉDER À L'ACCUEIL (ESSAI GRATUIT)",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                  ),
 
-                    // BOUTON DE DÉBLOCAGE AUTOMATIQUE POST-PAIEMENT
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.greenAccent,
-                          side: const BorderSide(color: Colors.greenAccent),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        icon: _isVerifyingPayment
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.greenAccent),
-                              )
-                            : const Icon(Icons.check_circle_outline, color: Colors.greenAccent),
-                        label: const Text(
-                          "J'ai payé, Débloquer à vie",
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                        onPressed: _isVerifyingPayment ? null : _autoActivateAfterPayment,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Divider(color: Colors.white24),
-                    const SizedBox(height: 15),
+                  const SizedBox(height: 20),
+                  const Divider(color: Colors.white24),
+                  const SizedBox(height: 15),
 
-                    // SAISIE DE CLÉ MANUELLE
-                    const Text(
-                      "Ou entrez votre clé d'activation manuelle :",
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _keyController,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: InputDecoration(
-                              hintText: "Entrez la clé de licence",
-                              hintStyle: const TextStyle(color: Colors.grey),
-                              filled: true,
-                              fillColor: Colors.black,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: const BorderSide(color: Colors.cyanAccent),
-                              ),
+                  // SAISIE DE CLÉ MANUELLE
+                  const Text(
+                    "Ou entrez votre clé d'activation manuelle :",
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _keyController,
+                          style: const TextStyle(color: Colors.white, fontFamily: 'monospace'),
+                          decoration: InputDecoration(
+                            hintText: "Entrez la clé de licence",
+                            hintStyle: const TextStyle(color: Colors.grey),
+                            filled: true,
+                            fillColor: Colors.black,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(color: Colors.cyanAccent),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.cyanAccent,
-                            foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          onPressed: _isLoading ? null : _submitKey,
-                          child: _isLoading
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                                )
-                              : const Text("Activer", style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 10),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.cyanAccent,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
-                      ],
-                    ),
-                  ],
+                        onPressed: _isLoading ? null : _submitKey,
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                              )
+                            : const Text("Activer", style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+
                   if (_errorMessage.isNotEmpty) ...[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     Text(
                       _errorMessage,
                       textAlign: TextAlign.center,

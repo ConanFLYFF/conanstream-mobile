@@ -18,6 +18,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   // Contrôleurs pour Xtream API
   final _xtreamFormKey = GlobalKey<FormState>();
+  final TextEditingController _xtreamProfileNameController = TextEditingController(); // 👈 Nouveau champ nom de profil
   final TextEditingController _xtreamUrlController = TextEditingController();
   final TextEditingController _xtreamUsernameController = TextEditingController();
   final TextEditingController _xtreamPasswordController = TextEditingController();
@@ -52,11 +53,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     _loadSavedTabInputs();
   }
 
-  // Charge les données sauvegardées pour chaque onglet spécifiquement
   Future<void> _loadSavedTabInputs() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       // Xtream
+      _xtreamProfileNameController.text = prefs.getString('saved_input_xtream_profile_name') ?? '';
       _xtreamUrlController.text = prefs.getString('saved_input_xtream_url') ?? 'http://smartprotv.org';
       _xtreamUsernameController.text = prefs.getString('saved_input_xtream_user') ?? '';
       _xtreamPasswordController.text = prefs.getString('saved_input_xtream_pass') ?? '';
@@ -79,10 +80,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     });
   }
 
-  // Enregistre les valeurs propres à chaque onglet
   Future<void> _saveTabInputs(String tab) async {
     final prefs = await SharedPreferences.getInstance();
     if (tab == 'xtream') {
+      await prefs.setString('saved_input_xtream_profile_name', _xtreamProfileNameController.text.trim());
       await prefs.setString('saved_input_xtream_url', _xtreamUrlController.text.trim());
       await prefs.setString('saved_input_xtream_user', _xtreamUsernameController.text.trim());
       await prefs.setString('saved_input_xtream_pass', _xtreamPasswordController.text.trim());
@@ -120,6 +121,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
     final username = _xtreamUsernameController.text.trim();
     final password = _xtreamPasswordController.text.trim();
+    final customProfileName = _xtreamProfileNameController.text.trim();
 
     HttpClient? client;
     try {
@@ -142,9 +144,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         if (data is Map && data['user_info'] != null) {
           final userInfo = data['user_info'];
           if (userInfo['auth'] == 1 || userInfo['status'] == 'Active') {
+            
+            // 💡 Si un nom personnalisé est renseigné, on l'injecte dans le profil sauvegardé
+            final effectiveUsername = customProfileName.isNotEmpty ? customProfileName : username;
+            
             final profile = AccountProfile(
               serverUrl: serverUrl,
-              username: username,
+              username: effectiveUsername,
               password: password,
               userInfo: userInfo,
             );
@@ -158,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               MaterialPageRoute(
                 builder: (_) => HomeScreen(
                   serverUrl: serverUrl,
-                  username: username,
+                  username: effectiveUsername,
                   password: password,
                 ),
               ),
@@ -195,14 +201,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   Future<void> _handleM3uLogin() async {
     if (!_m3uFormKey.currentState!.validate()) return;
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = '';
-    });
-
+    setState(() { _isLoading = true; _errorMessage = ''; });
     await _saveTabInputs('m3u');
-
     final playlistName = _m3uNameController.text.trim();
     final m3uUrl = _m3uUrlController.text.trim();
 
@@ -217,40 +217,23 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       await SharedPrefsHelper.setActiveAccount(profile);
 
       if (!mounted) return;
-
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => HomeScreen(
-            serverUrl: m3uUrl,
-            username: playlistName,
-            password: '',
-          ),
+          builder: (_) => HomeScreen(serverUrl: m3uUrl, username: playlistName, password: ''),
         ),
       );
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Erreur lors du traitement du lien M3U : $e';
-      });
+      setState(() { _errorMessage = 'Erreur lors du traitement du lien M3U : $e'; });
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() { _isLoading = false; });
     }
   }
 
   Future<void> _handleMacLogin() async {
     if (!_macFormKey.currentState!.validate()) return;
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = '';
-    });
-
+    setState(() { _isLoading = true; _errorMessage = ''; });
     await _saveTabInputs('mac');
-
     final portalName = _macNameController.text.trim();
     final portalUrl = _macPortalUrlController.text.trim();
     final macAddress = _macAddressController.text.trim();
@@ -258,7 +241,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     try {
       final profile = AccountProfile(
         serverUrl: portalUrl,
-        username: portalName.isNotEmpty ? portalName : 'Portail MAC ($macAddress)',
+        username: portalName.isNotEmpty ? portalName : 'Portail MAC',
         password: macAddress,
         userInfo: {'auth': 1, 'status': 'Active', 'username': portalName},
       );
@@ -266,27 +249,16 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       await SharedPrefsHelper.setActiveAccount(profile);
 
       if (!mounted) return;
-
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => HomeScreen(
-            serverUrl: portalUrl,
-            username: portalName,
-            password: macAddress,
-          ),
+          builder: (_) => HomeScreen(serverUrl: portalUrl, username: portalName, password: macAddress),
         ),
       );
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Erreur de connexion au portail MAC : $e';
-      });
+      setState(() { _errorMessage = 'Erreur de connexion au portail MAC : $e'; });
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() { _isLoading = false; });
     }
   }
 
@@ -296,7 +268,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         type: FileType.custom,
         allowedExtensions: ['m3u', 'm3u8', 'txt'],
       );
-
       if (result != null && result.files.single.path != null) {
         setState(() {
           _selectedFilePath = result.files.single.path;
@@ -307,27 +278,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         await _saveTabInputs('file');
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Erreur lors de la sélection du fichier : $e';
-      });
+      setState(() { _errorMessage = 'Erreur lors de la sélection du fichier : $e'; });
     }
   }
 
   Future<void> _handleFileLogin() async {
     if (!_fileFormKey.currentState!.validate() || _selectedFilePath == null) {
-      setState(() {
-        _errorMessage = 'Veuillez sélectionner un fichier .m3u valide';
-      });
+      setState(() { _errorMessage = 'Veuillez sélectionner un fichier .m3u valide'; });
       return;
     }
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = '';
-    });
-
+    setState(() { _isLoading = true; _errorMessage = ''; });
     await _saveTabInputs('file');
-
     final playlistName = _fileNameController.text.trim();
 
     try {
@@ -341,40 +302,23 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       await SharedPrefsHelper.setActiveAccount(profile);
 
       if (!mounted) return;
-
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => HomeScreen(
-            serverUrl: _selectedFilePath!,
-            username: playlistName,
-            password: '',
-          ),
+          builder: (_) => HomeScreen(serverUrl: _selectedFilePath!, username: playlistName, password: ''),
         ),
       );
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Erreur lors du chargement du fichier : $e';
-      });
+      setState(() { _errorMessage = 'Erreur lors du chargement du fichier : $e'; });
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() { _isLoading = false; });
     }
   }
 
   Future<void> _handleCodeLogin() async {
     if (!_codeFormKey.currentState!.validate()) return;
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = '';
-    });
-
+    setState(() { _isLoading = true; _errorMessage = ''; });
     await _saveTabInputs('code');
-
     final code = _activationCodeController.text.trim();
 
     try {
@@ -388,33 +332,23 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       await SharedPrefsHelper.setActiveAccount(profile);
 
       if (!mounted) return;
-
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => HomeScreen(
-            serverUrl: 'http://code-activation-server.com/$code',
-            username: 'Code: $code',
-            password: '',
-          ),
+          builder: (_) => HomeScreen(serverUrl: 'http://code-activation-server.com/$code', username: 'Code: $code', password: ''),
         ),
       );
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Code d\'activation invalide ou expiré : $e';
-      });
+      setState(() { _errorMessage = 'Code d\'activation invalide ou expiré : $e'; });
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() { _isLoading = false; });
     }
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _xtreamProfileNameController.dispose();
     _xtreamUrlController.dispose();
     _xtreamUsernameController.dispose();
     _xtreamPasswordController.dispose();
@@ -534,7 +468,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     ),
 
                   SizedBox(
-                    height: 310,
+                    height: 380, // Agrandit légèrement pour faire place au nouveau champ
                     child: TabBarView(
                       controller: _tabController,
                       children: [
@@ -543,7 +477,21 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           key: _xtreamFormKey,
                           child: Column(
                             children: [
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                controller: _xtreamProfileNameController,
+                                style: const TextStyle(color: Colors.white),
+                                decoration: InputDecoration(
+                                  labelText: 'Nom du profil (Optionnel, ex: Salon)',
+                                  labelStyle: const TextStyle(color: Colors.white60),
+                                  prefixIcon: const Icon(Icons.badge_rounded, color: Colors.indigoAccent),
+                                  filled: true,
+                                  fillColor: const Color(0xFF13192B),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.indigoAccent)),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
                               TextFormField(
                                 controller: _xtreamUrlController,
                                 style: const TextStyle(color: Colors.white),

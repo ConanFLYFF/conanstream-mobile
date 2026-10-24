@@ -6,15 +6,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/shared_prefs_helper.dart';
-import 'screens/activation_screen.dart';
 import 'screens/device_info_screen.dart';
 import 'services/activation_service.dart';
 
 void main() async {
-  // Capture globale des erreurs pour éviter les fermetures instantanées
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
 
@@ -36,7 +35,6 @@ void main() async {
         center: true,
         backgroundColor: Colors.transparent,
         skipTaskbar: false,
-        titleBarStyle: TitleBarStyle.hidden, // Masque la barre grise native Windows
         title: 'ConanStream',
       );
 
@@ -46,7 +44,6 @@ void main() async {
       });
     }
 
-    // Initialisation de MediaKit
     try {
       MediaKit.ensureInitialized();
     } catch (e) {
@@ -126,45 +123,45 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
   Future<void> _navigateToActivation() async {
     final accessStatus = await ActivationService.checkAccessStatus();
-    String reason = accessStatus['reason'] ?? 'EXPIRED';
-
-    // On force l'affichage systématique de la page de paiement/activation à 5,00 € à chaque démarrage
-    Widget targetScreen = ActivationScreen(
-      reason: reason,
-      price: "5,00 €",
-      onActivated: () async {
-        // Lorsque l'utilisateur clique sur le bouton "Continuer" depuis l'écran d'activation :
-        final accounts = await SharedPrefsHelper.getAccounts();
-        if (!mounted) return;
-
-        if (accounts.isNotEmpty) {
-          final activeAccount = accounts.last;
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => HomeScreen(
-                serverUrl: activeAccount.serverUrl,
-                username: activeAccount.username,
-                password: activeAccount.password,
-              ),
-            ),
-          );
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const LoginScreen()),
-          );
-        }
-      },
-    );
+    String reason = accessStatus['reason'] ?? 'IN_TRIAL';
 
     if (!mounted) return;
 
+    // 🔒 SI LA LICENCE EST DÉJÀ ACTIVÉE : On court-circuites la page de paiement !
+    if (reason == 'ACTIVATED') {
+      final prefs = await SharedPreferences.getInstance();
+      String? activeUsername = prefs.getString('active_account_data');
+
+      Widget target;
+      if (activeUsername != null && activeUsername.isNotEmpty) {
+        target = HomeScreen(
+          serverUrl: prefs.getString('saved_input_xtream_url') ?? 'http://smartprotv.org',
+          username: activeUsername,
+          password: prefs.getString('saved_input_xtream_pass') ?? '',
+        );
+      } else {
+        target = const LoginScreen();
+      }
+
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 800),
+          pageBuilder: (_, __, ___) => target,
+          transitionsBuilder: (_, animation, __, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+      );
+      return;
+    }
+
+    // 💳 SI NON ACTIVÉE : On affiche la page de paiement / licence (DeviceInfoScreen)
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 800),
-        pageBuilder: (_, __, ___) => targetScreen,
+        pageBuilder: (_, __, ___) => const DeviceInfoScreen(),
         transitionsBuilder: (_, animation, __, child) {
           return FadeTransition(opacity: animation, child: child);
         },
@@ -183,100 +180,63 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF000000),
-      body: Column(
-        children: [
-          // Barre de fenêtre personnalisée pour Windows / Desktop
-          if (!kIsWeb && Platform.isWindows)
-            Container(
-              height: 32,
-              color: Colors.black,
-              child: Row(
+      body: Center(
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_mainController, _particleController]),
+          builder: (context, child) {
+            double shakeOffset = math.sin(_shakeAnim.value * math.pi * 8) * (1.0 - _mainController.value) * 10;
+
+            return Transform.translate(
+              offset: Offset(shakeOffset, 0),
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  Expanded(
-                    child: DragToMoveArea(
-                      child: Container(
-                        alignment: Alignment.centerLeft,
-                        padding: const EdgeInsets.only(left: 12),
-                        child: const Text(
-                          "ConanStream",
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                  CustomPaint(
+                    size: const Size(1280, 720),
+                    painter: EpicCyberpunkPainter(
+                      progress: _mainController.value,
+                      tick: _particleController.value,
+                    ),
+                  ),
+                  ScaleTransition(
+                    scale: _zoomAnim,
+                    child: Container(
+                      width: 600,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF00E5FF).withOpacity(0.6 + (math.sin(_particleController.value * math.pi * 2) * 0.2)),
+                            blurRadius: 70,
+                            spreadRadius: 10,
                           ),
+                          BoxShadow(
+                            color: const Color(0xFFD500F9).withOpacity(0.6 + (math.cos(_particleController.value * math.pi * 2) * 0.2)),
+                            blurRadius: 70,
+                            spreadRadius: 10,
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/splash_logo.png',
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(Icons.flash_on, size: 120, color: Color(0xFF00E5FF));
+                          },
                         ),
                       ),
                     ),
                   ),
-                  const WindowCaption(
-                    brightness: Brightness.dark,
-                    backgroundColor: Colors.transparent,
-                  ),
+                  if (_flashAnim.value > 0.0)
+                    Container(
+                      color: Colors.white.withOpacity(_flashAnim.value),
+                    ),
                 ],
               ),
-            ),
-          
-          Expanded(
-            child: Center(
-              child: AnimatedBuilder(
-                animation: Listenable.merge([_mainController, _particleController]),
-                builder: (context, child) {
-                  double shakeOffset = math.sin(_shakeAnim.value * math.pi * 8) * (1.0 - _mainController.value) * 10;
-
-                  return Transform.translate(
-                    offset: Offset(shakeOffset, 0),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        CustomPaint(
-                          size: const Size(1280, 720),
-                          painter: EpicCyberpunkPainter(
-                            progress: _mainController.value,
-                            tick: _particleController.value,
-                          ),
-                        ),
-                        ScaleTransition(
-                          scale: _zoomAnim,
-                          child: Container(
-                            width: 600,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF00E5FF).withOpacity(0.6 + (math.sin(_particleController.value * math.pi * 2) * 0.2)),
-                                  blurRadius: 70,
-                                  spreadRadius: 10,
-                                ),
-                                BoxShadow(
-                                  color: const Color(0xFFD500F9).withOpacity(0.6 + (math.cos(_particleController.value * math.pi * 2) * 0.2)),
-                                  blurRadius: 70,
-                                  spreadRadius: 10,
-                                ),
-                              ],
-                            ),
-                            child: ClipOval(
-                              child: Image.asset(
-                                'assets/splash_logo.png',
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(Icons.flash_on, size: 120, color: Color(0xFF00E5FF));
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (_flashAnim.value > 0.0)
-                          Container(
-                            color: Colors.white.withOpacity(_flashAnim.value),
-                          ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
+            );
+          },
+        ),
       ),
     );
   }
