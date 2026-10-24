@@ -161,20 +161,25 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
 
-                      GlassCard(
-                        borderColor: Colors.white24,
-                        borderRadius: 24,
-                        opacity: 0.04,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.account_circle_rounded, color: Color(0xFF00E5FF), size: 20),
-                            const SizedBox(width: 10),
-                            Text(
-                              widget.username,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 13),
-                            ),
-                          ],
+                      // Bloc du profil cliquable menant directement aux paramètres
+                      InkWell(
+                        onTap: _openSettings,
+                        borderRadius: BorderRadius.circular(24),
+                        child: GlassCard(
+                          borderColor: Colors.white24,
+                          borderRadius: 24,
+                          opacity: 0.04,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.account_circle_rounded, color: Color(0xFF00E5FF), size: 20),
+                              const SizedBox(width: 10),
+                              Text(
+                                widget.username,
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 13),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
