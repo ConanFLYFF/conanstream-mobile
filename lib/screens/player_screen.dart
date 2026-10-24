@@ -198,7 +198,6 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
     final bool isLive = widget.streamUrl.contains('.ts') || widget.streamUrl.contains('.m3u8') || widget.streamUrl.contains('/live/');
     final savedProgress = isLive ? 0.0 : await SharedPrefsHelper.getVodProgress(widget.vodId);
 
-    // Ajout systématique du User-Agent VLC pour éviter les rejets IPTV VOD/Séries
     final media = Media(
       widget.streamUrl,
       httpHeaders: {
@@ -481,7 +480,7 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                     child: Video(
                       controller: _controller,
                       controls: NoVideoControls,
-                      filterQuality: FilterQuality.medium,
+                      filterQuality: FilterQuality.low, // Améliore la fluidité de décodage graphique
                     ),
                   ),
                 ),
@@ -493,7 +492,6 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            // Barre supérieure
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                               child: Row(
@@ -513,7 +511,6 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                                         color: Colors.white,
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
-                                        shadows: [Shadow(blurRadius: 10, color: Colors.black, offset: Offset(0, 2))],
                                       ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -521,20 +518,16 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                                   if (!isLive) ...[
                                     IconButton(
                                       icon: const Icon(Icons.audiotrack, color: Colors.white),
-                                      tooltip: 'Changer de piste audio',
                                       onPressed: _showAudioTracksDialog,
                                     ),
                                     IconButton(
                                       icon: const Icon(Icons.subtitles, color: Colors.white),
-                                      tooltip: 'Sous-titres',
                                       onPressed: _showSubtitleTracksDialog,
                                     ),
                                   ],
                                 ],
                               ),
                             ),
-
-                            // Boutons centraux de lecture
                             if (!isLive)
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -544,7 +537,6 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                                       iconSize: 36,
                                       color: widget.onPrevious != null ? Colors.white : Colors.white24,
                                       icon: const Icon(Icons.skip_previous_rounded),
-                                      tooltip: 'Épisode précédent',
                                       onPressed: widget.onPrevious,
                                     ),
                                     const SizedBox(width: 16),
@@ -553,7 +545,6 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                                     iconSize: 40,
                                     color: Colors.white,
                                     icon: const Icon(Icons.replay_10),
-                                    tooltip: 'Reculer de 10s',
                                     onPressed: () {
                                       final newPos = _player.state.position - const Duration(seconds: 10);
                                       _player.seek(newPos);
@@ -577,7 +568,6 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                                     iconSize: 40,
                                     color: Colors.white,
                                     icon: const Icon(Icons.forward_10),
-                                    tooltip: 'Avancer de 10s',
                                     onPressed: () {
                                       final newPos = _player.state.position + const Duration(seconds: 10);
                                       _player.seek(newPos);
@@ -589,7 +579,6 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                                       iconSize: 36,
                                       color: widget.onNext != null ? Colors.white : Colors.white24,
                                       icon: const Icon(Icons.skip_next_rounded),
-                                      tooltip: 'Épisode suivant',
                                       onPressed: widget.onNext,
                                     ),
                                   ],
@@ -597,8 +586,6 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                               )
                             else
                               const SizedBox.shrink(),
-
-                            // Barre inférieure de progression & volume
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
                               decoration: BoxDecoration(
@@ -654,7 +641,6 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                                               _isPiP ? Icons.picture_in_picture_alt : Icons.picture_in_picture,
                                               color: _isPiP ? const Color(0xFF00E5FF) : Colors.white,
                                             ),
-                                            tooltip: _isPiP ? 'Quitter le mode PiP' : 'Mode PiP (Fenêtre flottante)',
                                             onPressed: _togglePiP,
                                           ),
                                           const SizedBox(width: 4),

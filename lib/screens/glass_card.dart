@@ -30,61 +30,63 @@ class _GlassCardState extends State<GlassCard> {
   Widget build(BuildContext context) {
     final bool isActive = isHovered || isFocused;
 
-    return Focus(
-      onFocusChange: (hasFocus) {
-        setState(() {
-          isFocused = hasFocus;
-        });
-      },
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent &&
-            (event.logicalKey == LogicalKeyboardKey.enter ||
-             event.logicalKey == LogicalKeyboardKey.space)) {
-          if (widget.onTap != null) {
-            widget.onTap!();
-            return KeyEventResult.handled;
+    return RepaintBoundary(
+      child: Focus(
+        onFocusChange: (hasFocus) {
+          setState(() {
+            isFocused = hasFocus;
+          });
+        },
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              (event.logicalKey == LogicalKeyboardKey.enter ||
+               event.logicalKey == LogicalKeyboardKey.space)) {
+            if (widget.onTap != null) {
+              widget.onTap!();
+              return KeyEventResult.handled;
+            }
           }
-        }
-        return KeyEventResult.ignored;
-      },
-      child: MouseRegion(
-        onEnter: (_) => setState(() => isHovered = true),
-        onExit: (_) => setState(() => isHovered = false),
-        child: AnimatedScale(
-          scale: isActive ? 1.03 : 1.0,
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(widget.borderRadius),
-              boxShadow: [
-                BoxShadow(
-                  color: widget.borderColor.withOpacity(isActive ? 0.6 : 0.25),
-                  blurRadius: isActive ? 25 : 15,
-                  spreadRadius: isActive ? 2 : 0,
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(widget.borderRadius),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: widget.onTap,
-                    borderRadius: BorderRadius.circular(widget.borderRadius),
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(isActive ? widget.opacity + 0.07 : widget.opacity),
-                        borderRadius: BorderRadius.circular(widget.borderRadius),
-                        border: Border.all(
-                          color: isActive ? widget.borderColor : widget.borderColor.withOpacity(0.7),
-                          width: isActive ? 2.0 : 1.2,
+          return KeyEventResult.ignored;
+        },
+        child: MouseRegion(
+          onEnter: (_) => setState(() => isHovered = true),
+          onExit: (_) => setState(() => isHovered = false),
+          child: AnimatedScale(
+            scale: isActive ? 1.02 : 1.0, // Échelle légèrement adoucie pour plus de fluidité
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOutCubic,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(widget.borderRadius),
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.borderColor.withOpacity(isActive ? 0.4 : 0.15),
+                    blurRadius: isActive ? 15 : 8,
+                    spreadRadius: isActive ? 1 : 0,
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(widget.borderRadius),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0), // Réduction du flou pour un gain énorme en performance mobile
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: widget.onTap,
+                      borderRadius: BorderRadius.circular(widget.borderRadius),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(isActive ? widget.opacity + 0.05 : widget.opacity),
+                          borderRadius: BorderRadius.circular(widget.borderRadius),
+                          border: Border.all(
+                            color: isActive ? widget.borderColor : widget.borderColor.withOpacity(0.5),
+                            width: isActive ? 1.8 : 1.0,
+                          ),
                         ),
+                        child: widget.child,
                       ),
-                      child: widget.child,
                     ),
                   ),
                 ),

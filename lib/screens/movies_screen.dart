@@ -12,7 +12,6 @@ import 'in_progress_screen.dart';
 import 'shared_prefs_helper.dart';
 import 'glass_card.dart';
 
-// Fonction de parsing M3U en arrière-plan pour extraire strictement les VOD (Films)
 Map<String, dynamic> _parseM3uMoviesInBackground(String content) {
   final lines = content.split('\n');
   List<Map<String, dynamic>> movies = [];
@@ -42,8 +41,6 @@ Map<String, dynamic> _parseM3uMoviesInBackground(String content) {
       if (groupMatch != null) currentGroup = groupMatch.group(1) ?? 'Films';
     } else if (line.isNotEmpty && !line.startsWith('#')) {
       final lowerUrl = line.toLowerCase();
-      
-      // Filtre strict : Vrai fichier vidéo et exclusion formelle du Live TV
       final isVideoFile = lowerUrl.endsWith('.mp4') || 
                           lowerUrl.endsWith('.mkv') || 
                           lowerUrl.endsWith('.avi') || 
@@ -122,7 +119,6 @@ class _MoviesScreenState extends State<MoviesScreen> {
       final isLocalFile = !widget.serverUrl.startsWith('http://') && !widget.serverUrl.startsWith('https://');
       final isM3uLink = widget.serverUrl.contains('.m3u') || widget.serverUrl.contains('.m3u8');
 
-      // --- TRAITEMENT SOURCE M3U / FICHIER LOCAL ---
       if (isLocalFile || isM3uLink) {
         String content = '';
         if (isLocalFile) {
@@ -147,7 +143,6 @@ class _MoviesScreenState extends State<MoviesScreen> {
         }
       }
 
-      // --- TRAITEMENT SOURCE XTREAM API ---
       final String baseUrl = widget.serverUrl.endsWith('/')
           ? widget.serverUrl.substring(0, widget.serverUrl.length - 1)
           : widget.serverUrl;
@@ -440,6 +435,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
                                                             imageUrl: posterUrl,
                                                             fit: BoxFit.cover,
                                                             width: double.infinity,
+                                                            memCacheWidth: 300, // Optimisation mémoire RAM
+                                                            memCacheHeight: 450, // Optimisation mémoire RAM
                                                             placeholder: (context, url) => Container(color: Colors.white10),
                                                             errorWidget: (context, url, error) => Container(
                                                               color: Colors.white10,

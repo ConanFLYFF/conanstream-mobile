@@ -11,7 +11,6 @@ import 'favorites_screen.dart';
 import 'in_progress_screen.dart';
 import 'glass_card.dart';
 
-// Fonction de parsing M3U en arrière-plan pour extraire strictement les Séries
 Map<String, dynamic> _parseM3uSeriesInBackground(String content) {
   final lines = content.split('\n');
   List<Map<String, dynamic>> seriesList = [];
@@ -43,7 +42,6 @@ Map<String, dynamic> _parseM3uSeriesInBackground(String content) {
       final lowerName = currentName.toLowerCase();
       final lowerUrl = line.toLowerCase();
       
-      // Filtre strict : Présence de modèle de saison/épisode ou chemin de série
       final isSeriesPattern = RegExp(r's\d{1,2}e\d{1,2}').hasMatch(lowerName) || 
                               lowerName.contains('saison') ||
                               lowerUrl.contains('/series/');
@@ -120,7 +118,6 @@ class _SeriesScreenState extends State<SeriesScreen> {
       final isLocalFile = !widget.serverUrl.startsWith('http://') && !widget.serverUrl.startsWith('https://');
       final isM3uLink = widget.serverUrl.contains('.m3u') || widget.serverUrl.contains('.m3u8');
 
-      // --- TRAITEMENT SOURCE M3U / FICHIER LOCAL ---
       if (isLocalFile || isM3uLink) {
         String content = '';
         if (isLocalFile) {
@@ -145,7 +142,6 @@ class _SeriesScreenState extends State<SeriesScreen> {
         }
       }
 
-      // --- TRAITEMENT SOURCE XTREAM API ---
       final String baseUrl = widget.serverUrl.endsWith('/')
           ? widget.serverUrl.substring(0, widget.serverUrl.length - 1)
           : widget.serverUrl;
@@ -435,6 +431,8 @@ class _SeriesScreenState extends State<SeriesScreen> {
                                                         imageUrl: posterUrl,
                                                         fit: BoxFit.cover,
                                                         width: double.infinity,
+                                                        memCacheWidth: 300,
+                                                        memCacheHeight: 450,
                                                         placeholder: (context, url) => Container(color: Colors.white10),
                                                         errorWidget: (context, url, error) => Container(
                                                           color: Colors.white10,
