@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
 import 'glass_card.dart';
 import 'live_channels_screen.dart';
 import 'movies_screen.dart';
@@ -79,311 +82,356 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF030509),
-      body: Stack(
+      body: Column(
         children: [
-          // Halos lumineux d'ambiance
-          Positioned(
-            top: -100,
-            left: -100,
-            child: Container(
-              width: 500,
-              height: 500,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF00E5FF).withOpacity(0.05),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -100,
-            right: -100,
-            child: Container(
-              width: 500,
-              height: 500,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFFD500F9).withOpacity(0.05),
-              ),
-            ),
-          ),
-
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40.0, vertical: 24.0),
-              child: Column(
+          // --- Barre de titre sur mesure (Windows Desktop) ---
+          if (!kIsWeb && Platform.isWindows)
+            Container(
+              height: 34,
+              color: const Color(0xFF030509),
+              child: Row(
                 children: [
-                  // --- En-tête ---
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            _currentTime,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Container(width: 4, height: 4, decoration: const BoxDecoration(color: Color(0xFF00E5FF), shape: BoxShape.circle)),
-                          const SizedBox(width: 12),
-                          Text(
-                            _currentDate,
-                            style: const TextStyle(
-                              color: Colors.white60,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                        ],
-                      ),
-                      
-                      Container(
-                        height: 52,
-                        decoration: BoxDecoration(
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFD500F9).withOpacity(0.35),
-                              blurRadius: 15,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                        child: Image.asset(
-                          'assets/logo.png',
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(Icons.broken_image_rounded, color: Colors.redAccent, size: 28);
-                          },
-                        ),
-                      ),
-
-                      // Bloc du profil cliquable menant directement aux paramètres
-                      InkWell(
-                        onTap: _openSettings,
-                        borderRadius: BorderRadius.circular(24),
-                        child: GlassCard(
-                          borderColor: Colors.white24,
-                          borderRadius: 24,
-                          opacity: 0.04,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.account_circle_rounded, color: Color(0xFF00E5FF), size: 20),
-                              const SizedBox(width: 10),
-                              Text(
-                                widget.username,
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 13),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // --- Grille Principale ---
                   Expanded(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Colonne Gauche : Films & Séries
-                        Expanded(
-                          flex: 3,
-                          child: Column(
-                            children: [
-                              Expanded(
-                                child: GlassCard(
-                                  borderColor: const Color(0xFF00E5FF),
-                                  borderRadius: 16,
-                                  opacity: 0.05,
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => MoviesScreen(
-                                        serverUrl: widget.serverUrl,
-                                        username: widget.username,
-                                        password: widget.password,
-                                      ),
-                                    ),
-                                  ),
-                                  child: const Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.movie_creation_outlined, size: 32, color: Color(0xFF00E5FF)),
-                                      SizedBox(width: 14),
-                                      Text(
-                                        'FILMS (VOD)',
-                                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Expanded(
-                                child: GlassCard(
-                                  borderColor: const Color(0xFFD500F9),
-                                  borderRadius: 16,
-                                  opacity: 0.05,
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => SeriesScreen(
-                                        serverUrl: widget.serverUrl,
-                                        username: widget.username,
-                                        password: widget.password,
-                                      ),
-                                    ),
-                                  ),
-                                  child: const Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.video_library_outlined, size: 32, color: Color(0xFFD500F9)),
-                                      SizedBox(width: 14),
-                                      Text(
-                                        'SÉRIES',
-                                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
+                    child: DragToMoveArea(
+                      child: Container(
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.only(left: 16),
+                        child: const Text(
+                          "ConanStream",
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
+                      ),
+                    ),
+                  ),
+                  const WindowCaption(
+                    brightness: Brightness.dark,
+                    backgroundColor: Colors.transparent,
+                  ),
+                ],
+              ),
+            ),
 
-                        const SizedBox(width: 16),
+          // --- Contenu principal de l'application ---
+          Expanded(
+            child: Stack(
+              children: [
+                // Halos lumineux d'ambiance
+                Positioned(
+                  top: -100,
+                  left: -100,
+                  child: Container(
+                    width: 500,
+                    height: 500,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF00E5FF).withOpacity(0.05),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: -100,
+                  right: -100,
+                  child: Container(
+                    width: 500,
+                    height: 500,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFD500F9).withOpacity(0.05),
+                    ),
+                  ),
+                ),
 
-                        // Colonne Centrale : Télévision en direct
-                        Expanded(
-                          flex: 4,
-                          child: GlassCard(
-                            borderColor: const Color(0xFF00E5FF),
-                            borderRadius: 20,
-                            opacity: 0.07,
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => LiveChannelsScreen(
-                                  serverUrl: widget.serverUrl,
-                                  username: widget.username,
-                                  password: widget.password,
-                                ),
-                              ),
-                            ),
-                            child: const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40.0, vertical: 20.0),
+                    child: Column(
+                      children: [
+                        // --- En-tête ---
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
                               children: [
-                                Icon(Icons.live_tv_rounded, size: 68, color: Color(0xFF00E5FF)),
-                                SizedBox(height: 18),
                                 Text(
-                                  'TÉLÉVISION EN DIRECT',
-                                  style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                                  textAlign: TextAlign.center,
+                                  _currentTime,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.0,
+                                  ),
                                 ),
-                                SizedBox(height: 6),
+                                const SizedBox(width: 12),
+                                Container(
+                                  width: 4,
+                                  height: 4,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF00E5FF),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
                                 Text(
-                                  'Chaînes Live & Guide EPG',
-                                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                                  _currentDate,
+                                  style: const TextStyle(
+                                    color: Colors.white60,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w400,
+                                  ),
                                 ),
                               ],
                             ),
-                          ),
+                            
+                            Container(
+                              height: 52,
+                              decoration: BoxDecoration(
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFD500F9).withOpacity(0.35),
+                                    blurRadius: 15,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                              child: Image.asset(
+                                'assets/logo.png',
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Icon(Icons.broken_image_rounded, color: Colors.redAccent, size: 28);
+                                },
+                              ),
+                            ),
+
+                            // Bloc du profil cliquable menant aux paramètres
+                            InkWell(
+                              onTap: _openSettings,
+                              borderRadius: BorderRadius.circular(24),
+                              child: GlassCard(
+                                borderColor: Colors.white24,
+                                borderRadius: 24,
+                                opacity: 0.04,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.account_circle_rounded, color: Color(0xFF00E5FF), size: 20),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      widget.username,
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
 
-                        const SizedBox(width: 16),
+                        const SizedBox(height: 24),
 
-                        // Colonne Droite : En cours, Favoris & Paramètres
+                        // --- Grille Principale ---
                         Expanded(
-                          flex: 3,
-                          child: Column(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              // Colonne Gauche : Films & Séries
                               Expanded(
+                                flex: 3,
+                                child: Column(
+                                  children: [
+                                    Expanded(
+                                      child: GlassCard(
+                                        borderColor: const Color(0xFF00E5FF),
+                                        borderRadius: 16,
+                                        opacity: 0.05,
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => MoviesScreen(
+                                              serverUrl: widget.serverUrl,
+                                              username: widget.username,
+                                              password: widget.password,
+                                            ),
+                                          ),
+                                        ),
+                                        child: const Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.movie_creation_outlined, size: 32, color: Color(0xFF00E5FF)),
+                                            SizedBox(width: 14),
+                                            Text(
+                                              'FILMS (VOD)',
+                                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Expanded(
+                                      child: GlassCard(
+                                        borderColor: const Color(0xFFD500F9),
+                                        borderRadius: 16,
+                                        opacity: 0.05,
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => SeriesScreen(
+                                              serverUrl: widget.serverUrl,
+                                              username: widget.username,
+                                              password: widget.password,
+                                            ),
+                                          ),
+                                        ),
+                                        child: const Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.video_library_outlined, size: 32, color: Color(0xFFD500F9)),
+                                            SizedBox(width: 14),
+                                            Text(
+                                              'SÉRIES',
+                                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              const SizedBox(width: 16),
+
+                              // Colonne Centrale : Télévision en direct
+                              Expanded(
+                                flex: 4,
                                 child: GlassCard(
-                                  borderColor: const Color(0xFFFF007F),
-                                  borderRadius: 16,
-                                  opacity: 0.05,
+                                  borderColor: const Color(0xFF00E5FF),
+                                  borderRadius: 20,
+                                  opacity: 0.07,
                                   onTap: () => Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => InProgressScreen(
+                                      builder: (_) => LiveChannelsScreen(
                                         serverUrl: widget.serverUrl,
                                         username: widget.username,
                                         password: widget.password,
                                       ),
                                     ),
                                   ),
-                                  child: const Row(
+                                  child: const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      SizedBox(width: 6),
-                                      Icon(Icons.history_rounded, size: 30, color: Color(0xFFFF007F)),
-                                      SizedBox(width: 12),
-                                      Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text('EN COURS', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                                          SizedBox(height: 2),
-                                          Text('Reprise rapide', style: TextStyle(color: Colors.white54, fontSize: 11)),
-                                        ],
+                                      Icon(Icons.live_tv_rounded, size: 68, color: Color(0xFF00E5FF)),
+                                      SizedBox(height: 18),
+                                      Text(
+                                        'TÉLÉVISION EN DIRECT',
+                                        style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      SizedBox(height: 6),
+                                      Text(
+                                        'Chaînes Live & Guide EPG',
+                                        style: TextStyle(color: Colors.white54, fontSize: 12),
                                       ),
                                     ],
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 16),
+
+                              const SizedBox(width: 16),
+
+                              // Colonne Droite : En cours, Favoris & Paramètres
                               Expanded(
-                                child: GlassCard(
-                                  borderColor: const Color(0xFFFF3D00),
-                                  borderRadius: 16,
-                                  opacity: 0.05,
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => FavoritesScreen(
-                                        serverUrl: widget.serverUrl,
-                                        username: widget.username,
-                                        password: widget.password,
+                                flex: 3,
+                                child: Column(
+                                  children: [
+                                    Expanded(
+                                      child: GlassCard(
+                                        borderColor: const Color(0xFFFF007F),
+                                        borderRadius: 16,
+                                        opacity: 0.05,
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => InProgressScreen(
+                                              serverUrl: widget.serverUrl,
+                                              username: widget.username,
+                                              password: widget.password,
+                                            ),
+                                          ),
+                                        ),
+                                        child: const Row(
+                                          children: [
+                                            SizedBox(width: 6),
+                                            Icon(Icons.history_rounded, size: 30, color: Color(0xFFFF007F)),
+                                            SizedBox(width: 12),
+                                            Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text('EN COURS', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                                                SizedBox(height: 2),
+                                                Text('Reprise rapide', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  child: const Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.favorite_rounded, size: 28, color: Color(0xFFFF3D00)),
-                                      SizedBox(width: 12),
-                                      Text(
-                                        'FAVORIS',
-                                        style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                                    const SizedBox(height: 16),
+                                    Expanded(
+                                      child: GlassCard(
+                                        borderColor: const Color(0xFFFF3D00),
+                                        borderRadius: 16,
+                                        opacity: 0.05,
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => FavoritesScreen(
+                                              serverUrl: widget.serverUrl,
+                                              username: widget.username,
+                                              password: widget.password,
+                                            ),
+                                          ),
+                                        ),
+                                        child: const Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.favorite_rounded, size: 28, color: Color(0xFFFF3D00)),
+                                            SizedBox(width: 12),
+                                            Text(
+                                              'FAVORIS',
+                                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Expanded(
-                                child: GlassCard(
-                                  borderColor: Colors.white38,
-                                  borderRadius: 16,
-                                  opacity: 0.05,
-                                  onTap: _openSettings,
-                                  child: const Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.settings_outlined, size: 26, color: Colors.white70),
-                                      SizedBox(width: 12),
-                                      Text(
-                                        'PARAMÈTRES',
-                                        style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Expanded(
+                                      child: GlassCard(
+                                        borderColor: Colors.white38,
+                                        borderRadius: 16,
+                                        opacity: 0.05,
+                                        onTap: _openSettings,
+                                        child: const Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.settings_outlined, size: 26, color: Colors.white70),
+                                            SizedBox(width: 12),
+                                            Text(
+                                              'PARAMÈTRES',
+                                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
@@ -392,8 +440,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],

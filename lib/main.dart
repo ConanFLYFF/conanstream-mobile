@@ -14,23 +14,20 @@ import 'screens/device_info_screen.dart';
 import 'services/activation_service.dart';
 
 void main() async {
-  // Capture globale des erreurs pour éviter les fermetures instantanées (crashes silencieux)
+  // Capture globale des erreurs pour éviter les fermetures instantanées
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
 
     // 📱 Configuration Mobile / Tablette (Android & iOS)
     if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-      // Force l'orientation uniquement en mode paysage
       await SystemChrome.setPreferredOrientations([
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
       ]);
-
-      // Mode plein écran immersif : masque la barre de statut et les touches de navigation système
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
     
-    // 💻 Configuration spécifique pour Windows / Desktop avant d'initialiser MediaKit
+    // 💻 Configuration spécifique pour Windows / Desktop
     if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
       await windowManager.ensureInitialized();
 
@@ -39,7 +36,7 @@ void main() async {
         center: true,
         backgroundColor: Colors.transparent,
         skipTaskbar: false,
-        titleBarStyle: TitleBarStyle.normal,
+        titleBarStyle: TitleBarStyle.hidden, // Masque la barre grise native Windows
         title: 'ConanStream',
       );
 
@@ -49,7 +46,7 @@ void main() async {
       });
     }
 
-    // Initialisation sécurisée de MediaKit
+    // Initialisation de MediaKit
     try {
       MediaKit.ensureInitialized();
     } catch (e) {
@@ -180,63 +177,100 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF000000),
-      body: Center(
-        child: AnimatedBuilder(
-          animation: Listenable.merge([_mainController, _particleController]),
-          builder: (context, child) {
-            double shakeOffset = math.sin(_shakeAnim.value * math.pi * 8) * (1.0 - _mainController.value) * 10;
-
-            return Transform.translate(
-              offset: Offset(shakeOffset, 0),
-              child: Stack(
-                alignment: Alignment.center,
+      body: Column(
+        children: [
+          // Barre de fenêtre personnalisée pour Windows / Desktop
+          if (!kIsWeb && Platform.isWindows)
+            Container(
+              height: 32,
+              color: Colors.black,
+              child: Row(
                 children: [
-                  CustomPaint(
-                    size: const Size(1280, 720),
-                    painter: EpicCyberpunkPainter(
-                      progress: _mainController.value,
-                      tick: _particleController.value,
-                    ),
-                  ),
-                  ScaleTransition(
-                    scale: _zoomAnim,
-                    child: Container(
-                      width: 600,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF00E5FF).withOpacity(0.6 + (math.sin(_particleController.value * math.pi * 2) * 0.2)),
-                            blurRadius: 70,
-                            spreadRadius: 10,
+                  Expanded(
+                    child: DragToMoveArea(
+                      child: Container(
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.only(left: 12),
+                        child: const Text(
+                          "ConanStream",
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
                           ),
-                          BoxShadow(
-                            color: const Color(0xFFD500F9).withOpacity(0.6 + (math.cos(_particleController.value * math.pi * 2) * 0.2)),
-                            blurRadius: 70,
-                            spreadRadius: 10,
-                          ),
-                        ],
-                      ),
-                      child: ClipOval(
-                        child: Image.asset(
-                          'assets/splash_logo.png',
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(Icons.flash_on, size: 120, color: Color(0xFF00E5FF));
-                          },
                         ),
                       ),
                     ),
                   ),
-                  if (_flashAnim.value > 0.0)
-                    Container(
-                      color: Colors.white.withOpacity(_flashAnim.value),
-                    ),
+                  const WindowCaption(
+                    brightness: Brightness.dark,
+                    backgroundColor: Colors.transparent,
+                  ),
                 ],
               ),
-            );
-          },
-        ),
+            ),
+          
+          Expanded(
+            child: Center(
+              child: AnimatedBuilder(
+                animation: Listenable.merge([_mainController, _particleController]),
+                builder: (context, child) {
+                  double shakeOffset = math.sin(_shakeAnim.value * math.pi * 8) * (1.0 - _mainController.value) * 10;
+
+                  return Transform.translate(
+                    offset: Offset(shakeOffset, 0),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        CustomPaint(
+                          size: const Size(1280, 720),
+                          painter: EpicCyberpunkPainter(
+                            progress: _mainController.value,
+                            tick: _particleController.value,
+                          ),
+                        ),
+                        ScaleTransition(
+                          scale: _zoomAnim,
+                          child: Container(
+                            width: 600,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF00E5FF).withOpacity(0.6 + (math.sin(_particleController.value * math.pi * 2) * 0.2)),
+                                  blurRadius: 70,
+                                  spreadRadius: 10,
+                                ),
+                                BoxShadow(
+                                  color: const Color(0xFFD500F9).withOpacity(0.6 + (math.cos(_particleController.value * math.pi * 2) * 0.2)),
+                                  blurRadius: 70,
+                                  spreadRadius: 10,
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/splash_logo.png',
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Icon(Icons.flash_on, size: 120, color: Color(0xFF00E5FF));
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (_flashAnim.value > 0.0)
+                          Container(
+                            color: Colors.white.withOpacity(_flashAnim.value),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
