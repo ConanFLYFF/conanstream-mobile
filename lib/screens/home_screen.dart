@@ -12,7 +12,8 @@ import 'favorites_screen.dart';
 import 'in_progress_screen.dart';
 import 'settings_screen.dart';
 import 'login_screen.dart';
-import '../services/update_service.dart'; // 👈 Import du service de mise à jour
+import '../services/update_service.dart'; // Import du service de mise à jour
+import '../services/sheet_service.dart'; // 👈 Import de ton service Google Sheet
 
 class HomeScreen extends StatefulWidget {
   final String serverUrl;
@@ -46,6 +47,12 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         UpdateService.checkForUpdates(context);
       }
+    });
+
+    // 🧪 TEST DE LECTURE DU GOOGLE SHEET AU DÉMARRAGE DE L'ACCUEIL :
+    SheetService.fetchSheetData().then((data) {
+      debugPrint("=== MES DONNÉES GOOGLE SHEET ===");
+      debugPrint(data.toString());
     });
   }
 
