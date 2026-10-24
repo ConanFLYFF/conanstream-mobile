@@ -117,6 +117,7 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
   int _retryCount = 0;
   static const int _maxRetries = 3;
   StreamSubscription? _errorSubscription;
+  StreamSubscription? _playingSubscription;
 
   // Message d'erreur pro à afficher sur le lecteur en cas d'échec de flux
   String? streamErrorMessage;
@@ -135,6 +136,15 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
       }
     });
 
+    // Écoute de l'état de lecture pour effacer l'erreur dès que la vidéo tourne
+    _playingSubscription = _player.stream.playing.listen((isPlaying) {
+      if (isPlaying && mounted && streamErrorMessage != null) {
+        setState(() {
+          streamErrorMessage = null;
+        });
+      }
+    });
+
     _loadContent();
   }
 
@@ -143,6 +153,7 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
     _hideTimer?.cancel();
     _streamTimeoutTimer?.cancel();
     _errorSubscription?.cancel();
+    _playingSubscription?.cancel();
     _player.stop();
     _player.dispose();
     windowManager.unmaximize();
@@ -391,10 +402,10 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
     );
     _player.setVolume(_currentVolume);
 
-    // Sécurité anti-blocage muet : Si le flux ne répond pas au bout de 8 secondes, on déclenche l'échec
-    _streamTimeoutTimer = Timer(const Duration(seconds: 8), () {
-      if (mounted && selectedChannel?['stream_id'] == item['stream_id'] && streamErrorMessage == null) {
-        debugPrint("Délai d'attente dépassé (aucun signal ni erreur renvoyée).");
+    // Sécurité anti-blocage : Si le flux ne joue toujours pas au bout de 10 secondes, on déclenche l'échec
+    _streamTimeoutTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted && selectedChannel?['stream_id'] == item['stream_id'] && !_player.state.playing && streamErrorMessage == null) {
+        debugPrint("Délai d'attente dépassé (aucun signal vidéo actif).");
         _handleStreamFailure(item);
       }
     });
@@ -629,7 +640,7 @@ class _LiveChannelsScreenState extends State<LiveChannelsScreen> {
                     ),
                   ),
 
-                  // Affichage du message d'erreur pro si le flux échoue définitivement ou freeze
+                  // Affichage du message d'erreur pro si le flux échoue définitivement
                   if (streamErrorMessage != null)
                     Positioned.fill(
                       child: Container(
