@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../app_logger.dart';
+import '../../app_logger.dart';
 
 class ApiClient {
   static final http.Client _client = http.Client();

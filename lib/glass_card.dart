@@ -13,7 +13,7 @@ class GlassCard extends StatelessWidget {
     super.key,
     required this.child,
     this.onTap,
-    this.borderColor = const Color(0xFF00E5FF), // Cyan néon par défaut
+    this.borderColor = const Color(0xFF00E5FF),
     this.borderRadius = 16.0,
     this.blur = 10.0,
     this.opacity = 0.15,
