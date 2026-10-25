@@ -6,6 +6,15 @@ buildscript {
     dependencies {
         // Compatibilité AGP et Kotlin
         classpath 'com.android.tools.build:gradle:7.3.1'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.2.0'
+    }
+    // Intercepte et force la version de Kotlin au niveau du buildscript pour tous les plugins
+    configurations.classpath {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'org.jetbrains.kotlin') {
+                details.useVersion '2.2.0'
+            }
+        }
     }
 }
 
@@ -35,7 +44,7 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-// Correctif du namespace pour install_plugin_v2 sans erreur d'évaluation Gradle[cite: 8]
+// Correctif du namespace pour install_plugin_v2
 subprojects {
     plugins.withId('com.android.library') {
         if (project.name == 'install_plugin_v2') {
