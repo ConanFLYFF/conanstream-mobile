@@ -3,7 +3,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'player_screen.dart';
 import 'shared_prefs_helper.dart';
 import 'utils/api_client.dart';
-import 'utils/app_logger.dart';
 import 'glass_card.dart';
 
 class SeriesDetailsScreen extends StatefulWidget {
@@ -36,7 +35,6 @@ class _SeriesDetailsScreenState extends State<SeriesDetailsScreen> {
   @override
   void initState() {
     super.initState();
-    AppLogger.action('NAVIGATION', 'Ouverture Fiche Série : ${widget.series['name']}');
     _fetchSeriesDetails();
     _checkFavoriteStatus();
   }
@@ -174,8 +172,7 @@ class _SeriesDetailsScreenState extends State<SeriesDetailsScreen> {
         });
         await _loadEpisodesProgress();
       }
-    } catch (e, stack) {
-      AppLogger.error('FETCH_SERIES_DETAILS', e, stack);
+    } catch (_) {
       if (mounted) setState(() => isLoading = false);
     }
   }
@@ -202,8 +199,6 @@ class _SeriesDetailsScreenState extends State<SeriesDetailsScreen> {
 
     final streamUrl = '$baseUrl/series/${widget.username}/${widget.password}/$epId.$containerExt';
     final fullTitle = '$title - S${seasonNum}E$epNum : $epTitle';
-
-    AppLogger.action('PLAYER', 'Lancement Épisode : $fullTitle ($streamUrl)');
 
     final route = MaterialPageRoute(
       builder: (_) => PlayerScreen(
