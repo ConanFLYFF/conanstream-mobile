@@ -1,48 +1,48 @@
 name: conanstream
-description: "Application IPTV ConanStream avec lecteur multimédia haute performance."[cite: 8]
-publish_to: 'none'[cite: 8]
+description: "Application IPTV ConanStream avec lecteur multimédia haute performance."
+publish_to: 'none'
 
-version: 1.0.0+1[cite: 8]
+version: 1.0.0+1
 
 environment:
-  sdk: '>=3.2.0 <4.0.0'[cite: 8]
+  sdk: '>=3.2.0 <4.0.0'
 
 dependencies:
   flutter:
-    sdk: flutter[cite: 8]
-  http: ^1.2.0[cite: 8]
-  media_kit: ^1.1.10[cite: 8]
-  media_kit_video: ^1.2.4[cite: 8]
-  media_kit_libs_video: ^1.0.7[cite: 8]
-  shared_preferences: ^2.2.2[cite: 8]
-  cached_network_image: ^3.3.1[cite: 8]
-  device_info_plus: ^10.1.0[cite: 8]
-  network_info_plus: ^5.0.3[cite: 8]
-  crypto: ^3.0.3[cite: 8]
-  url_launcher: ^6.3.1[cite: 8]
-  file_picker: ^8.1.4[cite: 8]
-  package_info_plus: ^8.0.0[cite: 8]
-  path_provider: ^2.1.2[cite: 8]
+    sdk: flutter
+  http: ^1.2.0
+  media_kit: ^1.1.10
+  media_kit_video: ^1.2.4
+  media_kit_libs_video: ^1.0.7
+  shared_preferences: ^2.2.2
+  cached_network_image: ^3.3.1
+  device_info_plus: ^10.1.0
+  network_info_plus: ^5.0.3
+  crypto: ^3.0.3
+  url_launcher: ^6.3.1
+  file_picker: ^8.1.4
+  package_info_plus: ^8.0.0
+  path_provider: ^2.1.2
 
 dev_dependencies:
   flutter_test:
-    sdk: flutter[cite: 8]
+    sdk: flutter
   integration_test:
-    sdk: flutter[cite: 8]
-  flutter_lints: ^3.0.0[cite: 8]
-  flutter_launcher_icons: ^0.13.1[cite: 8]
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter_launcher_icons:
-  android: true[cite: 8]
-  windows: false[cite: 8]
-  ios: false[cite: 8]
-  image_path: "assets/iconelogo.png"[cite: 8]
-  min_sdk_android: 21[cite: 8]
+  android: true
+  windows: false
+  ios: false
+  image_path: "assets/iconelogo.png"
+  min_sdk_android: 21
 
 flutter:
-  uses-material-design: true[cite: 8]
+  uses-material-design: true
 
   assets:
-    - assets/logo.png[cite: 8]
-    - assets/splash_logo.png[cite: 8]
-    - assets/iconelogo.png[cite: 8]
+    - assets/logo.png
+    - assets/splash_logo.png
+    - assets/iconelogo.png
