@@ -4,7 +4,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        // Mise à jour de l'AGP de 7.3.0 à 7.3.1 pour être compatible avec Kotlin 2.2.0
+        // Mise à jour de l'AGP de 7.3.0 à 7.3.1 pour être compatible avec Kotlin 2.2.0[cite: 11]
         classpath 'com.android.tools.build:gradle:7.3.1'
     }
 }
@@ -22,6 +22,21 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+}
+
+// Correctif automatique pour injecter le namespace manquant sur le plugin install_plugin_v2
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            project.android {
+                if (namespace == null) {
+                    if (project.name == 'install_plugin_v2') {
+                        namespace 'com.zaihui.installplugin'
+                    }
+                }
+            }
+        }
+    }
 }
 
 tasks.register("clean", Delete) {
