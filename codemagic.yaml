@@ -1,0 +1,68 @@
+workflows:
+  build-and-release:
+    name: Build and Auto-Release Android
+    max_build_duration: 60
+    instance_type: linux
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+
+    environment:
+      groups:
+        - github
+      flutter: stable
+
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+
+      # 1. Compilation APK Android
+      - name: Build APK Release avec versioning automatique
+        script: |
+          flutter build apk --release \
+            --build-number=$BUILD_NUMBER \
+            --build-name=1.0.$BUILD_NUMBER \
+            --obfuscate \
+            --split-debug-info=build/app/outputs/symbols \
+            --android-skip-build-dependency-validation
+
+      # 2. Publication de la Release sur GitHub & mise à jour du version.json
+      - name: Publier la Release sur GitHub et mettre a jour version.json
+        script: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "ERREUR : GH_TOKEN manque dans l'environnement !"
+            exit 1
+          fi
+
+          # Installation du CLI GitHub si nécessaire
+          type gh >/dev/null 2>&1 || sudo apt-get update && sudo apt-get install -y gh
+
+          echo "$GH_TOKEN" | gh auth login --with-token
+
+          gh release create "v1.0.$BUILD_NUMBER" \
+            "build/app/outputs/flutter-apk/app-release.apk" \
+            --title "Release v1.0.$BUILD_NUMBER" \
+            --notes "Mise a jour automatique (Build #$BUILD_NUMBER)" || true
+
+          cat <<EOF > version.json
+          {
+            "versionCode": $BUILD_NUMBER,
+            "versionName": "1.0.$BUILD_NUMBER",
+            "apkUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.$BUILD_NUMBER/app-release.apk",
+            "exeUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.$BUILD_NUMBER/conanstream-windows.exe",
+            "releaseNotes": "Mise a jour automatique (Build #$BUILD_NUMBER)"
+          }
+          EOF
+
+          git config --global user.name "Codemagic Bot"
+          git config --global user.email "bot@codemagic.io"
+          git add version.json
+          git commit -m "Auto-update version.json [Build #$BUILD_NUMBER] [skip ci]" || true
+          git push https://$GH_TOKEN@github.com/ConanFLYFF/conanstream-mobile.git HEAD:main
+
+    artifacts:
+      - build/app/outputs/flutter-apk/app-release.apk
