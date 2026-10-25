@@ -3,7 +3,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'player_screen.dart';
 import 'shared_prefs_helper.dart';
 import 'utils/api_client.dart';
-import 'utils/app_logger.dart';
 
 class MovieDetailsScreen extends StatefulWidget {
   final String serverUrl;
