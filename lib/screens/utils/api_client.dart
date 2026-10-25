@@ -4,6 +4,11 @@ import 'package:http/http.dart' as http;
 
 /// Logger interne pour éviter tout problème d'importation inter-dossiers
 class AppLogger {
+  static void action(String category, String message) {
+    final time = DateTime.now().toIso8601String().split('T').last;
+    debugPrint('🟩 [$time] [ACTION] [$category] $message');
+  }
+
   static void httpReq(String method, String url, int statusCode, int durationMs, {String? error}) {
     final time = DateTime.now().toIso8601String().split('T').last;
     if (statusCode >= 200 && statusCode < 300) {
@@ -52,3 +57,4 @@ class ApiClient {
     return null;
   }
 }
+
