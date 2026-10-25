@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../../app_logger.dart';
+import 'package:conanstream/app_logger.dart'; // <--- Import absolu basé sur le nom de ton projet
 
 class ApiClient {
   static final http.Client _client = http.Client();
