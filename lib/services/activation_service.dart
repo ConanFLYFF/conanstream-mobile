@@ -11,10 +11,10 @@ class ActivationService {
   static Future<String> getDeviceId() async {
     DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
     try {
-      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-      return md5.convert(utf8.encode(androidInfo.id)).toString();
+      WindowsDeviceInfo windowsInfo = await deviceInfo.windowsInfo;
+      return md5.convert(utf8.encode(windowsInfo.deviceId)).toString();
     } catch (_) {
-      return md5.convert(utf8.encode("DEFAULT_ANDROID_DEVICE")).toString();
+      return md5.convert(utf8.encode("DEFAULT_WINDOWS_DEVICE")).toString();
     }
   }
 
@@ -85,6 +85,3 @@ class ActivationService {
     }
   }
 }
-```[cite: 11]
-
-Envoie le prochain fichier à traiter pour Android !

@@ -2,10 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:install_plugin_v2/install_plugin_v2.dart';
 
 class UpdateHelper {
   static const String jsonUrl = 'https://raw.githubusercontent.com/ConanFLYFF/conanstream-mobile/main/version.json';
@@ -124,8 +124,9 @@ class UpdateHelper {
         final file = File(filePath);
         await file.writeAsBytes(response.bodyBytes);
 
-        // Lancer l'installation native de l'APK sur Android[cite: 16]
-        await InstallPlugin.installApk(filePath);
+        // Lancer l'installation native de l'APK via le MethodChannel
+        const platform = MethodChannel('com.example.iptv/install');
+        await platform.invokeMethod('installApk', {'filePath': filePath});
       } else {
         throw Exception('Erreur de téléchargement');
       }
@@ -139,5 +140,3 @@ class UpdateHelper {
     }
   }
 }
-```[cite: 16]
-
