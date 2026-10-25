@@ -1,7 +1,7 @@
 {
-  "versionCode": 1,
-  "versionName": "1.0.1",
-  "apkUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.1/app-release.apk",
-  "exeUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.1/conanstream-windows.exe",
-  "releaseNotes": "Mise à jour automatique (Build #1)"
+  "versionCode": 32,
+  "versionName": "1.0.32",
+  "apkUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.32/app-release.apk",
+  "exeUrl": "https://github.com/ConanFLYFF/conanstream-mobile/releases/download/v1.0.32/conanstream-windows.exe",
+  "releaseNotes": "Mise à jour automatique (Build #32)"
 }
